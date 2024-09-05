@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -68,7 +69,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 
 	s, err := c.clientSet.CoreV1().Secrets(c.NameSpace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("error creating secret: %v", err)
+		return fmt.Errorf("error creating secret: %w", err)
 	}
 
 	log.Infof("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
@@ -81,19 +82,19 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 		// Convert YAML to JSON
 		jsonBytes, err := yaml.YAMLToJSON([]byte(manifest))
 		if err != nil {
-			return fmt.Errorf("error converting YAML to JSON: %v", err)
+			return fmt.Errorf("error converting YAML to JSON: %w", err)
 		}
 
 		u := &unstructured.Unstructured{}
 		if err = u.UnmarshalJSON(jsonBytes); err != nil {
-			return fmt.Errorf("error unmarshalling JSON: %v", err)
+			return fmt.Errorf("error unmarshalling JSON: %w", err)
 		}
 
 		// Apply the object to the cluster
 		gvr := schema.GroupVersionResource{
 			Group:    u.GroupVersionKind().Group,
 			Version:  u.GroupVersionKind().Version,
-			Resource: u.GetKind(),
+			Resource: strings.ToLower(u.GetKind()) + "s", // Convert kind to plural form
 		}
 
 		if _, err := c.dynamic.Resource(gvr).Namespace(c.NameSpace).Create(ctx, u, metav1.CreateOptions{}); err != nil {
@@ -105,10 +106,10 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 				})
 
 				if retryErr != nil {
-					return fmt.Errorf("update failed: %v", retryErr)
+					return fmt.Errorf("update failed: %w", retryErr)
 				}
 			}
-			return fmt.Errorf("error creating object: %v", err)
+			return fmt.Errorf("error creating object: %w", err)
 		}
 	}
 

@@ -20,7 +20,7 @@ func ExecuteCommand(command string, args ...string) (string, error) {
 	log.Debugf("Executing command: %s %s", command, strings.Join(args, " "))
 
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("error executing command: %v, stderr: %s", err, stderr.String())
+		return "", fmt.Errorf("error executing command: %w, stderr: %s", err, stderr.String())
 	}
 
 	if stderr.Len() > 0 {

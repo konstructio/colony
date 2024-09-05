@@ -37,29 +37,28 @@ var initCmd = &cobra.Command{
 		apiKey, _ := cmd.Flags().GetString("apiKey")
 		colonyAPIURL, _ := cmd.Flags().GetString("apiURL")
 		loadBalancer, _ := cmd.Flags().GetString("loadBalancer")
-		colonyImageTag, _ := cmd.Flags().GetString("colonyImageTag")
 
 		colonyApi := colonyapi.New(colonyAPIURL, apiKey)
 		if err := colonyApi.ValidateApiKey(ctx); err != nil {
-			log.Fatalf("error validating api key: %v", err)
+			log.Fatalf("error validating api key: %w", err)
 		}
 
 		log.Info("initializing colony cloud with api key: ", apiKey)
 
 		k8sClient, err := k8s.New("/home/vagrant/.kube/config")
 		if err != nil {
-			log.Fatalf("error creating k8s client: %v", err)
+			log.Fatalf("error creating k8s client: %w", err)
 		}
 
 		// Create a secret in the cluster
 		if err := k8sClient.CreateAPIKeySecret(ctx, apiKey); err != nil {
-			log.Fatalf("error creating secret: %v", err)
+			log.Fatalf("error creating secret: %w", err)
 		}
 
 		log.Info("Applying tink templates")
 		templates, err := colonyApi.GetSystemTemplates(ctx)
 		if err != nil {
-			log.Fatalf("error getting system templates: %v", err)
+			log.Fatalf("error getting system templates: %w", err)
 		}
 
 		var manifests []string
@@ -68,7 +67,7 @@ var initCmd = &cobra.Command{
 		}
 
 		if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
-			log.Fatalf("error applying templates: %v", err)
+			log.Fatalf("error applying templates: %w", err)
 		}
 
 		log.Info("Installing Colony helm chart")
@@ -178,19 +177,15 @@ var initCmd = &cobra.Command{
 				helmChartName,
 				"--version",
 				helmChartVersion,
-				"konstructio/colony-agent",
+				"konstruct/colony",
 				"--set",
-				"extraEnvSecrets.API_TOKEN.name=colony-api",
+				"colony-agent.extraEnvSecrets.API_TOKEN.name=colony-api",
 				"--set",
-				"extraEnvSecrets.API_TOKEN.key=api-key",
+				"colony-agent.extraEnvSecrets.API_TOKEN.key=api-key",
 				"--set",
-				fmt.Sprintf("extraEnv.LOAD_BALANCER=%s", loadBalancer),
+				fmt.Sprintf("colony-agent.extraEnv.LOAD_BALANCER=%s", loadBalancer),
 				"--set",
-				fmt.Sprintf("extraEnv.COLONY_API_URL=%s", colonyAPIURL),
-				"--set",
-				"image.repository=ghcr.io/konstructio/colony-agent",
-				"--set",
-				fmt.Sprintf("image.tag=%s", colonyImageTag),
+				fmt.Sprintf("colony-agent.extraEnv.COLONY_API_URL=%s", colonyAPIURL),
 			}
 
 			_, err = exec.ExecuteCommand("helm", installFlags...)
@@ -210,6 +205,4 @@ func init() {
 	initCmd.Flags().String("apiURL", "", "api url for interacting with colony cloud (required)")
 	initCmd.MarkFlagRequired("apiURL")
 	initCmd.Flags().String("loadBalancer", "10.0.10.2", "load balancer ip address (required)")
-	initCmd.Flags().String("colonyImageTag", "f82e0a4", "colony image tag")
-	rootCmd.AddCommand(initCmd)
 }
