@@ -22,8 +22,8 @@ const (
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "initialize colony in your managmenet cluster",
-	Long:  `initialize colony in your managmenet cluster`,
+	Short: "initialize colony in your management cluster",
+	Long:  `initialize colony in your management cluster`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetLevel(log.DebugLevel)
 
@@ -90,7 +90,7 @@ var initCmd = &cobra.Command{
 		}
 		if res != "" {
 			if err := yaml.Unmarshal([]byte(res), &existingHelmRepositories); err != nil {
-				log.Fatal("could not get existing helm repositories:" + err.Error())
+				log.Fatalf("could not get existing helm repositories: %s", err.Error())
 			}
 		}
 
@@ -113,7 +113,7 @@ var initCmd = &cobra.Command{
 				helmChartRepoURL,
 			)
 			if err != nil {
-				log.Errorf("error adding helm chart repository: %s", err)
+				log.Fatalf("error adding helm chart repository: %s", err)
 			}
 			log.Infof("Added Colony helm chart repository")
 		} else {
@@ -158,7 +158,7 @@ var initCmd = &cobra.Command{
 
 		var existingHelmReleases []helmRelease
 		if err := yaml.Unmarshal([]byte(res), &existingHelmReleases); err != nil {
-			log.Errorf(fmt.Sprintf("could not get existing helm releases: %s", err))
+			log.Errorf("could not get existing helm releases: %s", err)
 		}
 
 		chartInstalled := func() bool {
