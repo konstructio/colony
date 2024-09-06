@@ -81,7 +81,7 @@ var initCmd = &cobra.Command{
 			"yaml",
 		)
 		if err != nil {
-			log.Warn("error listing current helm repositories:" + err.Error())
+			log.Warn("no repos found on helm:" + err.Error())
 		}
 
 		var existingHelmRepositories []struct {
