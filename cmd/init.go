@@ -40,25 +40,25 @@ var initCmd = &cobra.Command{
 
 		colonyApi := colonyapi.New(colonyAPIURL, apiKey)
 		if err := colonyApi.ValidateApiKey(ctx); err != nil {
-			log.Fatalf("error validating api key: %w", err)
+			log.Fatalf("error validating api key: %s", err)
 		}
 
 		log.Info("initializing colony cloud with api key: ", apiKey)
 
 		k8sClient, err := k8s.New("/home/vagrant/.kube/config")
 		if err != nil {
-			log.Fatalf("error creating k8s client: %w", err)
+			log.Fatalf("error creating k8s client: %s", err)
 		}
 
 		// Create a secret in the cluster
 		if err := k8sClient.CreateAPIKeySecret(ctx, apiKey); err != nil {
-			log.Fatalf("error creating secret: %w", err)
+			log.Fatalf("error creating secret: %s", err)
 		}
 
 		log.Info("Applying tink templates")
 		templates, err := colonyApi.GetSystemTemplates(ctx)
 		if err != nil {
-			log.Fatalf("error getting system templates: %w", err)
+			log.Fatalf("error getting system templates: %s", err)
 		}
 
 		var manifests []string
@@ -67,7 +67,7 @@ var initCmd = &cobra.Command{
 		}
 
 		if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
-			log.Fatalf("error applying templates: %w", err)
+			log.Fatalf("error applying templates: %s", err)
 		}
 
 		log.Info("Installing Colony helm chart")
@@ -81,16 +81,17 @@ var initCmd = &cobra.Command{
 			"yaml",
 		)
 		if err != nil {
-			log.Fatal("error listing current helm repositories: %s", err.Error())
+			log.Warn("error listing current helm repositories:" + err.Error())
 		}
 
-		type helmRepo struct {
+		var existingHelmRepositories []struct {
 			Name string `yaml:"name"`
 			URL  string `yaml:"url"`
 		}
-		var existingHelmRepositories []helmRepo
-		if err := yaml.Unmarshal([]byte(res), &existingHelmRepositories); err != nil {
-			log.Fatal(fmt.Sprintf("could not get existing helm repositories: %s", err))
+		if res != "" {
+			if err := yaml.Unmarshal([]byte(res), &existingHelmRepositories); err != nil {
+				log.Fatal("could not get existing helm repositories:" + err.Error())
+			}
 		}
 
 		repoExists := func() bool {
