@@ -33,10 +33,6 @@ func New(baseURL, token string) *API {
 }
 
 func (a *API) ValidateApiKey(ctx context.Context) error {
-	type response struct {
-		IsValid bool `json:"isValid"`
-	}
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/token/validate", nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
@@ -56,7 +52,9 @@ func (a *API) ValidateApiKey(ctx context.Context) error {
 		return fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 
-	var r response
+	var r struct {
+		IsValid bool `json:"isValid"`
+	}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		return fmt.Errorf("error decoding response: %w", err)
 	}
@@ -91,8 +89,8 @@ func (a *API) GetSystemTemplates(ctx context.Context) ([]Template, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %w", err)
 	}
-
 	defer res.Body.Close()
+
 	var templates []Template
 	if err := json.NewDecoder(res.Body).Decode(&templates); err != nil {
 		return nil, fmt.Errorf("error decoding response: %w", err)

@@ -1,7 +1,15 @@
 package main
 
-import "github.com/konstructio/colony/cmd"
+import (
+	"fmt"
+	"os"
+
+	"github.com/konstructio/colony/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	if err := cmd.GetRootCommand().Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
 }
