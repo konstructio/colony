@@ -15,6 +15,10 @@ type API struct {
 	token   string
 }
 
+const (
+	validateAPIKeyURL = "/api/v1/token/validate"
+)
+
 // New creates a new colony API client
 func New(baseURL, token string) *API {
 	return &API{
@@ -33,7 +37,7 @@ func New(baseURL, token string) *API {
 }
 
 func (a *API) ValidateAPIKey(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/token/validate", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+validateAPIKeyURL, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
