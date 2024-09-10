@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/konstructio/colony/internal/colonyapi"
+	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
@@ -36,14 +36,14 @@ func getInitCommand() *cobra.Command {
 				apiKey = os.Getenv("COLONY_API_KEY")
 			}
 
-			colonyApi := colonyapi.New(apiURL, apiKey)
-			if err := colonyApi.ValidateApiKey(ctx); err != nil {
+			colonyApi := colony.New(apiURL, apiKey)
+			if err := colonyApi.ValidateAPIKey(ctx); err != nil {
 				return fmt.Errorf("error validating api key: %w", err)
 			}
 
 			log.Info("initializing colony cloud with api key:", apiKey)
 
-			k8sClient, err := k8s.New("/home/vagrant/.kube/config")
+			k8sClient, err := k8s.New(log, "/home/vagrant/.kube/config")
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}

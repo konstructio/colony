@@ -1,4 +1,4 @@
-package colonyapi
+package colony
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func New(baseURL, token string) *API {
 	}
 }
 
-func (a *API) ValidateApiKey(ctx context.Context) error {
+func (a *API) ValidateAPIKey(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/token/validate", nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
@@ -41,11 +41,11 @@ func (a *API) ValidateApiKey(ctx context.Context) error {
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Authorization", "Bearer "+a.token)
+
 	res, err := a.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error making request: %w", err)
 	}
-
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {

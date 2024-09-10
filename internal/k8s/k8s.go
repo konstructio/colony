@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/konstructio/colony/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,14 +20,15 @@ import (
 )
 
 type Client struct {
-	clientSet  *kubernetes.Clientset
+	clientSet  kubernetes.Interface
 	dynamic    *dynamic.DynamicClient
 	config     *rest.Config
 	NameSpace  string
 	SecretName string
+	logger     *logger.Logger
 }
 
-func New(kubeConfig string) (*Client, error) {
+func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 	// Build configuration instance from the provided config file
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
 	if err != nil {
@@ -52,6 +53,7 @@ func New(kubeConfig string) (*Client, error) {
 		config:     config,
 		NameSpace:  "tink-system",
 		SecretName: "colony-api",
+		logger:     logger,
 	}, nil
 }
 
@@ -72,7 +74,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	log.Infof("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
+	c.logger.Debugf("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
 
 	return nil
 }
