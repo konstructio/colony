@@ -10,7 +10,6 @@ import (
 )
 
 func TestAPI_ValidateApiKey(t *testing.T) {
-	ctx := context.TODO()
 	validToken := "super-duper-valid-token"
 	apiEndpoint := "/api/v1/token/validate"
 
@@ -21,20 +20,18 @@ func TestAPI_ValidateApiKey(t *testing.T) {
 				t.Fatalf("expected to request %s but got: %s", apiEndpoint, r.URL.Path)
 			}
 
-			// check Authorization header is set properly
 			if r.Header.Get("Authorization") != fmt.Sprintf("Bearer %s", validToken) {
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte("Authentication not provided"))
+				t.Fatalf("expected to get a bearer token %s but got: %s", fmt.Sprintf("Bearer %s", validToken), r.Header.Get("Authorization"))
 			}
 
-			w.Write([]byte("{\"isValid\": true}"))
+			fmt.Fprintln(w, `{"isValid": true}`)
 		}))
 
 		defer mockServer.Close()
 
 		api := New(mockServer.URL, validToken)
 
-		err := api.ValidateApiKey(ctx)
+		err := api.ValidateApiKey(context.TODO())
 		if err != nil {
 			t.Fatalf("expected nil but got: %s", err)
 		}
@@ -42,14 +39,14 @@ func TestAPI_ValidateApiKey(t *testing.T) {
 
 	t.Run("invalid api key", func(t *testing.T) {
 		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("{\"isValid\": false}"))
+			fmt.Fprintln(w, `{"isValid": false}`)
 		}))
-
-		api := New(mockServer.URL, validToken)
 
 		defer mockServer.Close()
 
-		err := api.ValidateApiKey(ctx)
+		api := New(mockServer.URL, validToken)
+
+		err := api.ValidateApiKey(context.TODO())
 		if !errors.Is(err, invalidKeyError) {
 			t.Fatalf("expected %s, but got: %s", invalidKeyError, err)
 		}
@@ -70,13 +67,11 @@ func TestAPI_GetSystemTemplates(t *testing.T) {
 				t.Fatalf("expected to request %s but got: %s", apiEndpoint, r.URL.Path)
 			}
 
-			// check Authorization header is set properly
 			if r.Header.Get("Authorization") != fmt.Sprintf("Bearer %s", validToken) {
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte("Authentication not provided"))
+				t.Fatalf("expected to get a bearer token %s but got: %s", fmt.Sprintf("Bearer %s", validToken), r.Header.Get("Authorization"))
 			}
 
-			w.Write([]byte(response))
+			fmt.Fprintln(w, response)
 		}))
 
 		defer mockServer.Close()

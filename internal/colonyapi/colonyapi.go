@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var invalidKeyError = errors.New("invalid api key")
+var invalidKeyError = errors.New("invalid Colony API key")
 
 type API struct {
 	client  *http.Client
