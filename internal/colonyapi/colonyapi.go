@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 )
+
+var invalidKeyError = errors.New("invalid api key")
 
 type API struct {
 	client  *http.Client
@@ -62,7 +65,7 @@ func (a *API) ValidateApiKey(ctx context.Context) error {
 	}
 
 	if !r.IsValid {
-		return fmt.Errorf("invalid api key")
+		return invalidKeyError
 	}
 
 	return nil
