@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -78,6 +79,34 @@ func TestAPI_GetSystemTemplates(t *testing.T) {
 		if reflect.DeepEqual(response, templates) {
 			t.Fatalf("expected %#v got %#v", response, templates)
 		}
+	})
+
+	t.Run("connection reset by peer", func(t *testing.T) {
+
+		myListener, err := net.Listen("tcp", "localhost:0")
+		if err != nil {
+			t.Fatalf("error creating listener %s", err)
+		}
+		address := myListener.Addr().String()
+
+		go func() {
+
+			for {
+				con, err := myListener.Accept()
+				if err != nil {
+					t.Log(err)
+				}
+				con.Close()
+			}
+		}()
+
+		api := New(address, testValidToken)
+
+		_, err = api.GetSystemTemplates(context.TODO())
+		if err == nil {
+			t.Fatal("was expecting error but got none")
+		}
+
 	})
 }
 
