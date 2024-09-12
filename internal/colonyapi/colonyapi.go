@@ -10,7 +10,12 @@ import (
 	"time"
 )
 
-var invalidKeyError = errors.New("invalid Colony API key")
+var errInvalidKey = errors.New("invalid Colony API key")
+
+const (
+	templateEndpoint = "/api/v1/templates/all/system"
+	validateEndpoint = "/api/v1/token/validate"
+)
 
 type API struct {
 	client  *http.Client
@@ -65,7 +70,7 @@ func (a *API) ValidateApiKey(ctx context.Context) error {
 	}
 
 	if !r.IsValid {
-		return invalidKeyError
+		return errInvalidKey
 	}
 
 	return nil
@@ -81,7 +86,7 @@ type Template struct {
 }
 
 func (a *API) GetSystemTemplates(ctx context.Context) ([]Template, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/templates/all/system", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+templateEndpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}

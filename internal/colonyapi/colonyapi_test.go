@@ -2,34 +2,31 @@ package colonyapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
+const (
+	testValidToken = "super-duper-valid-token"
+)
+
 func TestAPI_ValidateApiKey(t *testing.T) {
-	validToken := "super-duper-valid-token"
-	apiEndpoint := "/api/v1/token/validate"
 
-	t.Run("valid api key", func(t *testing.T) {
-		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Run("valid API key", func(t *testing.T) {
+		response := map[string]interface{}{
+			"isValid": true,
+		}
 
-			if r.URL.Path != apiEndpoint {
-				t.Fatalf("expected to request %s but got: %s", apiEndpoint, r.URL.Path)
-			}
-
-			if r.Header.Get("Authorization") != fmt.Sprintf("Bearer %s", validToken) {
-				t.Fatalf("expected to get a bearer token %s but got: %s", fmt.Sprintf("Bearer %s", validToken), r.Header.Get("Authorization"))
-			}
-
-			fmt.Fprintln(w, `{"isValid": true}`)
-		}))
+		mockServer := createServer(t, response, validateEndpoint)
 
 		defer mockServer.Close()
 
-		api := New(mockServer.URL, validToken)
+		api := New(mockServer.URL, testValidToken)
 
 		err := api.ValidateApiKey(context.TODO())
 		if err != nil {
@@ -37,52 +34,66 @@ func TestAPI_ValidateApiKey(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid api key", func(t *testing.T) {
+	t.Run("invalid API key", func(t *testing.T) {
 		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, `{"isValid": false}`)
 		}))
 
 		defer mockServer.Close()
 
-		api := New(mockServer.URL, validToken)
+		api := New(mockServer.URL, testValidToken)
 
 		err := api.ValidateApiKey(context.TODO())
-		if !errors.Is(err, invalidKeyError) {
-			t.Fatalf("expected %s, but got: %s", invalidKeyError, err)
+		if !errors.Is(err, errInvalidKey) {
+			t.Fatalf("expected %s, but got: %s", errInvalidKey, err)
 		}
 	})
 
 }
 
 func TestAPI_GetSystemTemplates(t *testing.T) {
-	ctx := context.TODO()
-	validToken := "super-duper-valid-token"
-	apiEndpoint := "/api/v1/templates/all/system"
-	response := `[{"id":"k1","name":"name","label":"label","isTinkTemplate":true,"isSystem":true,"template":"template_data"}]`
 
 	t.Run("valid response", func(t *testing.T) {
-		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			if r.URL.Path != apiEndpoint {
-				t.Fatalf("expected to request %s but got: %s", apiEndpoint, r.URL.Path)
-			}
+		response := []Template{{
+			ID:             "k1",
+			Name:           "name",
+			Label:          "label",
+			IsTinkTemplate: true,
+			IsSystem:       true,
+			Template:       "template_data",
+		}}
 
-			if r.Header.Get("Authorization") != fmt.Sprintf("Bearer %s", validToken) {
-				t.Fatalf("expected to get a bearer token %s but got: %s", fmt.Sprintf("Bearer %s", validToken), r.Header.Get("Authorization"))
-			}
-
-			fmt.Fprintln(w, response)
-		}))
+		mockServer := createServer(t, response, templateEndpoint)
 
 		defer mockServer.Close()
 
-		api := New(mockServer.URL, validToken)
+		api := New(mockServer.URL, testValidToken)
 
-		templates, err := api.GetSystemTemplates(ctx)
+		templates, err := api.GetSystemTemplates(context.TODO())
 		if err != nil {
 			t.Fatalf("expected nil but got: %s", err)
 		}
 
-		_ = templates
+		if reflect.DeepEqual(response, templates) {
+			t.Fatalf("expected %#v got %#v", response, templates)
+		}
 	})
+}
+
+func createServer(t *testing.T, response interface{}, apiEndpoint string) *httptest.Server {
+
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET "+apiEndpoint, func(w http.ResponseWriter, r *http.Request) {
+
+		if r.Header.Get("Authorization") != fmt.Sprintf("Bearer %s", testValidToken) {
+			t.Fatalf("expected to get a bearer token %s but got: %s", fmt.Sprintf("Bearer %s", testValidToken), r.Header.Get("Authorization"))
+		}
+
+		json.NewEncoder(w).Encode(response)
+	})
+
+	return httptest.NewServer(mux)
 }
