@@ -13,12 +13,14 @@ func TestClient_CreateAPIKeySecret(t *testing.T) {
 
 	t.Run("successful creation", func(tt *testing.T) {
 
-		secretNamespace := "tink-system"
-		secretName := "colony-api"
-		secretKey := "api-key"
-		secretValue := "super-duper-secret"
+var (
+	secretNamespace = "tink-system"
+	secretName      = "colony-api"
+	secretKey       = "api-key"
+	secretValue     = "super-duper-secret"
 
-		mockServer := fakeServer.NewClientset()
+	mockServer = fakeServer.NewClientset()
+)
 
 		client := &Client{
 			clientSet: mockServer,
