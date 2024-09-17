@@ -45,7 +45,7 @@ func (a *API) ValidateApiKey(ctx context.Context) error {
 		IsValid bool `json:"isValid"`
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/token/validate", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+validateEndpoint, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
