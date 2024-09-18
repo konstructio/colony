@@ -69,7 +69,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 		},
 	}
 
-	s, err := c.clientSet.CoreV1().Secrets(c.NameSpace).Create(ctx, secret, metav1.CreateOptions{})
+	s, err := c.clientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
