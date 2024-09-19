@@ -1,4 +1,4 @@
-package colonyapi
+package colony
 
 import (
 	"context"
@@ -10,18 +10,18 @@ import (
 	"time"
 )
 
+type API struct {
+	client  *http.Client
+	baseURL string
+	token   string
+}
+
 var errInvalidKey = errors.New("invalid Colony API key")
 
 const (
 	templateEndpoint = "/api/v1/templates/all/system"
 	validateEndpoint = "/api/v1/token/validate"
 )
-
-type API struct {
-	client  *http.Client
-	baseURL string
-	token   string
-}
 
 // New creates a new colony API client
 func New(baseURL, token string) *API {
@@ -40,11 +40,7 @@ func New(baseURL, token string) *API {
 	}
 }
 
-func (a *API) ValidateApiKey(ctx context.Context) error {
-	type response struct {
-		IsValid bool `json:"isValid"`
-	}
-
+func (a *API) ValidateAPIKey(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+validateEndpoint, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
@@ -53,18 +49,20 @@ func (a *API) ValidateApiKey(ctx context.Context) error {
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Authorization", "Bearer "+a.token)
+
 	res, err := a.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error making request: %w", err)
 	}
-
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 
-	var r response
+	var r struct {
+		IsValid bool `json:"isValid"`
+	}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 		return fmt.Errorf("error decoding response: %w", err)
 	}
@@ -86,7 +84,7 @@ type Template struct {
 }
 
 func (a *API) GetSystemTemplates(ctx context.Context) ([]Template, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+templateEndpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/templates/all/system", nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
@@ -99,8 +97,8 @@ func (a *API) GetSystemTemplates(ctx context.Context) ([]Template, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %w", err)
 	}
-
 	defer res.Body.Close()
+
 	var templates []Template
 	if err := json.NewDecoder(res.Body).Decode(&templates); err != nil {
 		return nil, fmt.Errorf("error decoding response: %w", err)
