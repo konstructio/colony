@@ -4,15 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/konstructio/colony/internal/logger"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	fakeServer "k8s.io/client-go/kubernetes/fake"
 )
 
 func TestClient_CreateAPIKeySecret(t *testing.T) {
-
 	t.Run("successful creation", func(tt *testing.T) {
-
 		var (
 			secretNamespace = "tink-system"
 			secretName      = "colony-api"
@@ -24,6 +23,7 @@ func TestClient_CreateAPIKeySecret(t *testing.T) {
 
 		client := &Client{
 			clientSet: mockServer,
+			logger:    logger.NOOPLogger,
 		}
 
 		ctx := context.TODO()
@@ -35,7 +35,6 @@ func TestClient_CreateAPIKeySecret(t *testing.T) {
 
 		// check secret exists
 		secret, err := client.clientSet.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, v1.GetOptions{})
-
 		if err != nil {
 			if errors.IsNotFound(err) {
 				tt.Fatalf("can't find the secret %q", secretName)
@@ -52,5 +51,4 @@ func TestClient_CreateAPIKeySecret(t *testing.T) {
 			tt.Fatalf("expected key value %q but got %q", secretValue, string(data))
 		}
 	})
-
 }

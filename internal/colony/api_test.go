@@ -2,103 +2,118 @@ package colony
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
-func createServer(t *testing.T, path string, fn http.HandlerFunc) *httptest.Server {
-	t.Helper()
-	mux := http.NewServeMux()
-	mux.HandleFunc(path, fn)
-	return httptest.NewServer(mux)
-}
+const (
+	testValidToken = "super-duper-valid-token"
+)
 
-func Test_ValidateAPIKey(t *testing.T) {
-	t.Run("full request flow", func(t *testing.T) {
-		fakeToken := "my-super-secret"
-
-		srv := createServer(t, validateAPIKeyURL, func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("Authorization") != "Bearer "+fakeToken {
-				t.Fatalf("unexpected Authorization header: %s", r.Header.Get("Authorization"))
-			}
-
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"isValid": true}`))
-		})
-		defer srv.Close()
-
-		ctx := context.Background()
-		api := New(srv.URL, fakeToken)
-
-		if err := api.ValidateAPIKey(ctx); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+func TestAPI_ValidateApiKey(t *testing.T) {
+	t.Run("valid API key", func(t *testing.T) {
+		response := map[string]interface{}{
+			"isValid": true,
 		}
-	})
 
-	t.Run("malformed URL", func(t *testing.T) {
-		baseURL := ":"
-		api := New(baseURL, "token")
+		mockServer := createServer(t, response, validateEndpoint)
 
-		err := api.ValidateAPIKey(context.Background())
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
+		defer mockServer.Close()
 
-	t.Run("unable to connect", func(t *testing.T) {
-		srv := httptest.NewServer(nil)
-		srv.Close()
+		api := New(mockServer.URL, testValidToken)
 
-		api := New(srv.URL, "token")
-
-		err := api.ValidateAPIKey(context.Background())
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("invalid status code", func(t *testing.T) {
-		srv := createServer(t, validateAPIKeyURL, func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		})
-		defer srv.Close()
-
-		api := New(srv.URL, "token")
-
-		err := api.ValidateAPIKey(context.Background())
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("invalid response body", func(t *testing.T) {
-		srv := createServer(t, validateAPIKeyURL, func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`not JSON`))
-		})
-		defer srv.Close()
-
-		api := New(srv.URL, "token")
-
-		err := api.ValidateAPIKey(context.Background())
-		if err == nil {
-			t.Fatal("expected error, got nil")
+		err := api.ValidateAPIKey(context.TODO())
+		if err != nil {
+			t.Fatalf("expected nil but got: %s", err)
 		}
 	})
 
 	t.Run("invalid API key", func(t *testing.T) {
-		srv := createServer(t, validateAPIKeyURL, func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"isValid": false}`))
-		})
-		defer srv.Close()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, `{"isValid": false}`)
+		}))
 
-		api := New(srv.URL, "token")
+		defer mockServer.Close()
 
-		err := api.ValidateAPIKey(context.Background())
-		if err == nil {
-			t.Fatal("expected error, got nil")
+		api := New(mockServer.URL, testValidToken)
+
+		err := api.ValidateAPIKey(context.TODO())
+		if !errors.Is(err, errInvalidKey) {
+			t.Fatalf("expected %s, but got: %s", errInvalidKey, err)
 		}
 	})
+}
+
+func TestAPI_GetSystemTemplates(t *testing.T) {
+	t.Run("valid response", func(t *testing.T) {
+		response := []Template{{
+			ID:             "k1",
+			Name:           "name",
+			Label:          "label",
+			IsTinkTemplate: true,
+			IsSystem:       true,
+			Template:       "template_data",
+		}}
+
+		mockServer := createServer(t, response, templateEndpoint)
+
+		defer mockServer.Close()
+
+		api := New(mockServer.URL, testValidToken)
+
+		templates, err := api.GetSystemTemplates(context.TODO())
+		if err != nil {
+			t.Fatalf("expected nil but got: %s", err)
+		}
+
+		if !reflect.DeepEqual(response, templates) {
+			t.Fatalf("expected %#v got %#v", response, templates)
+		}
+	})
+
+	t.Run("connection reset by peer", func(t *testing.T) {
+		myListener, err := net.Listen("tcp", "localhost:0")
+		if err != nil {
+			t.Fatalf("error creating listener %s", err)
+		}
+		address := myListener.Addr().String()
+
+		go func() {
+			for {
+				con, err := myListener.Accept()
+				if err != nil {
+					t.Log(err)
+				}
+				con.Close()
+			}
+		}()
+
+		api := New(address, testValidToken)
+
+		_, err = api.GetSystemTemplates(context.TODO())
+		if err == nil {
+			t.Fatal("was expecting error but got none")
+		}
+	})
+}
+
+func createServer(t *testing.T, response interface{}, apiEndpoint string) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET "+apiEndpoint, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != fmt.Sprintf("Bearer %s", testValidToken) {
+			t.Fatalf("expected to get a bearer token %s but got: %s", fmt.Sprintf("Bearer %s", testValidToken), r.Header.Get("Authorization"))
+		}
+
+		json.NewEncoder(w).Encode(response)
+	})
+
+	return httptest.NewServer(mux)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -15,8 +16,11 @@ type API struct {
 	token   string
 }
 
+var errInvalidKey = errors.New("invalid Colony API key")
+
 const (
-	validateAPIKeyURL = "/api/v1/token/validate"
+	templateEndpoint = "/api/v1/templates/all/system"
+	validateEndpoint = "/api/v1/token/validate"
 )
 
 // New creates a new colony API client
@@ -37,7 +41,7 @@ func New(baseURL, token string) *API {
 }
 
 func (a *API) ValidateAPIKey(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+validateAPIKeyURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+validateEndpoint, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
@@ -64,7 +68,7 @@ func (a *API) ValidateAPIKey(ctx context.Context) error {
 	}
 
 	if !r.IsValid {
-		return fmt.Errorf("invalid api key")
+		return errInvalidKey
 	}
 
 	return nil
