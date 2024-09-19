@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/konstructio/colony/internal/logger"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,18 +17,18 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/yaml"
 )
 
 type Client struct {
 	clientSet  kubernetes.Interface
-	dynamic    *dynamic.DynamicClient
+	dynamic    dynamic.Interface
 	config     *rest.Config
 	NameSpace  string
 	SecretName string
+	logger     *logger.Logger
 }
 
-func New(kubeConfig string) (*Client, error) {
+func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 	// Build configuration instance from the provided config file
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
 	if err != nil {
@@ -52,6 +53,7 @@ func New(kubeConfig string) (*Client, error) {
 		config:     config,
 		NameSpace:  "tink-system",
 		SecretName: "colony-api",
+		logger:     logger,
 	}, nil
 }
 
@@ -72,44 +74,44 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	log.Infof("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
+	c.logger.Debugf("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
 
 	return nil
 }
 
 func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 	for _, manifest := range manifests {
-		// Convert YAML to JSON
-		jsonBytes, err := yaml.YAMLToJSON([]byte(manifest))
-		if err != nil {
-			return fmt.Errorf("error converting YAML to JSON: %w", err)
+		// Unmarshal the manifest into an unstructured object
+		// TBD: decide if the YAML manifest would have more than one
+		// resource definition, since then we need a loop
+		var obj unstructured.Unstructured
+		if err := yaml.Unmarshal([]byte(manifest), &obj.Object); err != nil {
+			return fmt.Errorf("error unmarshalling manifest: %w", err)
 		}
 
-		u := &unstructured.Unstructured{}
-		if err = u.UnmarshalJSON(jsonBytes); err != nil {
-			return fmt.Errorf("error unmarshalling JSON: %w", err)
-		}
-
-		// Apply the object to the cluster
+		// Get the GVK
+		gvk := obj.GroupVersionKind()
 		gvr := schema.GroupVersionResource{
-			Group:    u.GroupVersionKind().Group,
-			Version:  u.GroupVersionKind().Version,
-			Resource: strings.ToLower(u.GetKind()) + "s", // Convert kind to plural form
+			Group:    gvk.Group,
+			Version:  gvk.Version,
+			Resource: strings.ToLower(gvk.Kind) + "s",
 		}
 
-		if _, err := c.dynamic.Resource(gvr).Namespace(c.NameSpace).Create(ctx, u, metav1.CreateOptions{}); err != nil {
+		// Create the resource
+		_, err := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Create(ctx, &obj, metav1.CreateOptions{})
+		if err != nil {
 			if errors.IsAlreadyExists(err) {
-				// If the resource already exists, update it
 				retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-					_, err := c.dynamic.Resource(gvr).Namespace(u.GetNamespace()).Update(context.Background(), u, metav1.UpdateOptions{})
+					_, err := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Update(ctx, &obj, metav1.UpdateOptions{})
 					return err
 				})
 
 				if retryErr != nil {
-					return fmt.Errorf("update failed: %w", retryErr)
+					return fmt.Errorf("error updating resource: %w", retryErr)
 				}
 			}
-			return fmt.Errorf("error creating object: %w", err)
+
+			return fmt.Errorf("error creating resource: %w", err)
 		}
 	}
 
