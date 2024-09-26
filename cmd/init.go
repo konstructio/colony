@@ -189,6 +189,8 @@ func getInitCommand() *cobra.Command {
 					fmt.Sprintf("colony-agent.extraEnv.LOAD_BALANCER=%s", loadBalancer),
 					"--set",
 					fmt.Sprintf("colony-agent.extraEnv.COLONY_API_URL=%s", apiURL),
+					"--set",
+					fmt.Sprintf("colony-agent.extraEnv.TALOS_URL_FILES_SOURCE=http://%s:8080", loadBalancer),
 				}
 
 				_, err = exec.ExecuteCommand(log, "helm", installFlags...)
