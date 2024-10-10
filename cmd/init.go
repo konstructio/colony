@@ -16,7 +16,7 @@ const (
 	helmChartName     = "colony"
 	helmChartRepoName = "konstruct"
 	helmChartRepoURL  = "https://charts.konstruct.io"
-	helmChartVersion  = "0.1.0-rc152"
+	helmChartVersion  = "0.1.0"
 	namespace         = "tink-system"
 )
 
