@@ -107,7 +107,7 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 		// Use the restmapper to get the GVR
 		mapping, err := c.restmapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 		if err != nil {
-			return fmt.Errorf("error getting rest mapping: %w", err)
+			return fmt.Errorf("unable to map manifest to a Kubernetes resource: %w", err)
 		}
 
 		// Find the preferred version mapping
