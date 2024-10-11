@@ -59,8 +59,7 @@ func TestClient_CreateAPIKeySecret(t *testing.T) {
 }
 
 func Test_ApplyManifests(t *testing.T) {
-	t.Run("successful creation", func(tt *testing.T) {
-		const rbacRoleYAML = `---
+	const rbacRoleYAML = `---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -71,6 +70,7 @@ spec:
     matchLabels:
       app: test`
 
+	t.Run("successful creation", func(tt *testing.T) {
 		// Create a fake dynamic client with an empty scheme set
 		scheme := runtime.NewScheme()
 
@@ -102,7 +102,7 @@ spec:
 
 		err := client.ApplyManifests(ctx, []string{rbacRoleYAML})
 		if err != nil {
-			tt.Fatalf("not expecting an error but got : %s", err)
+			tt.Fatalf("not expecting an error but got: %s", err)
 		}
 
 		_, err = client.dynamic.Resource(schema.GroupVersionResource{
@@ -111,7 +111,36 @@ spec:
 			Resource: "networkpolicies",
 		}).Namespace("default").Get(ctx, "test-network-policy", v1.GetOptions{})
 		if err != nil {
-			tt.Fatalf("not expecting an error got %s", err)
+			tt.Fatalf("not expecting an error got: %s", err)
+		}
+	})
+
+	t.Run("unknown resource creation", func(tt *testing.T) {
+		// Create a fake dynamic client with an empty scheme set
+		scheme := runtime.NewScheme()
+
+		// Add the networkingv1 API group to the scheme
+		if err := networkingv1.AddToScheme(scheme); err != nil {
+			tt.Fatalf("error adding networkingv1 to scheme: %s", err)
+		}
+
+		// Create a fake dynamic client with the scheme
+		dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
+
+		// DO NOT teach the server about any type
+		restMapper := meta.NewDefaultRESTMapper(nil)
+
+		client := &Client{
+			dynamic:    dynamicClient, // Use the fake dynamic client
+			restmapper: restMapper,    // Use the fake REST mapper
+			logger:     logger.NOOPLogger,
+		}
+
+		ctx := context.TODO()
+
+		err := client.ApplyManifests(ctx, []string{rbacRoleYAML})
+		if err == nil {
+			tt.Fatalf("expecting an error but got nil")
 		}
 	})
 }
