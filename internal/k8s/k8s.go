@@ -3,18 +3,19 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/konstructio/colony/internal/logger"
-	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 )
@@ -22,8 +23,8 @@ import (
 type Client struct {
 	clientSet  kubernetes.Interface
 	dynamic    dynamic.Interface
+	restmapper meta.RESTMapper
 	config     *rest.Config
-	NameSpace  string
 	SecretName string
 	logger     *logger.Logger
 }
@@ -46,12 +47,23 @@ func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 		return nil, fmt.Errorf("error creating dynamic client: %s", err)
 	}
 
+	discovery, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("error creating discovery client: %s", err)
+	}
+
+	groupResources, err := restmapper.GetAPIGroupResources(discovery)
+	if err != nil {
+		return nil, fmt.Errorf("error getting API group resources: %s", err)
+	}
+
+	restmapper := restmapper.NewDiscoveryRESTMapper(groupResources)
+
 	return &Client{
-		// ClientSet:  k8s.CreateKubeConfig(false, "/home/vagrant/.kube/config").Clientset,
 		clientSet:  clientset,
 		dynamic:    dynamic,
+		restmapper: restmapper,
 		config:     config,
-		NameSpace:  "tink-system",
 		SecretName: "colony-api",
 		logger:     logger,
 	}, nil
@@ -80,28 +92,37 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 }
 
 func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
+	decoderUnstructured := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+
 	for _, manifest := range manifests {
-		// Unmarshal the manifest into an unstructured object
-		// TBD: decide if the YAML manifest would have more than one
-		// resource definition, since then we need a loop
 		var obj unstructured.Unstructured
-		if err := yaml.Unmarshal([]byte(manifest), &obj.Object); err != nil {
-			return fmt.Errorf("error unmarshalling manifest: %w", err)
+		_, gvk, err := decoderUnstructured.Decode([]byte(manifest), nil, &obj)
+		if err != nil {
+			return fmt.Errorf("error decoding manifest: %w", err)
 		}
 
-		// Get the GVK
-		gvk := obj.GroupVersionKind()
-		gvr := schema.GroupVersionResource{
-			Group:    gvk.Group,
-			Version:  gvk.Version,
-			Resource: strings.ToLower(gvk.Kind) + "s",
+		// Set the appropriate GVK
+		obj.SetGroupVersionKind(*gvk)
+
+		// Use the restmapper to get the GVR
+		mapping, err := c.restmapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		if err != nil {
+			return fmt.Errorf("unable to map manifest to a Kubernetes resource: %w", err)
 		}
+
+		// Find the preferred version mapping
+		gvr := mapping.Resource
 
 		// Create the resource
-		_, err := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Create(ctx, &obj, metav1.CreateOptions{})
+		_, err = c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Create(ctx, &obj, metav1.CreateOptions{})
 		if err != nil {
 			if errors.IsAlreadyExists(err) {
 				retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					existingObj, getErr := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Get(ctx, obj.GetName(), metav1.GetOptions{})
+					if getErr != nil {
+						return getErr
+					}
+					obj.SetResourceVersion(existingObj.GetResourceVersion())
 					_, err := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Update(ctx, &obj, metav1.UpdateOptions{})
 					return err
 				})
