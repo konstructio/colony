@@ -10,6 +10,7 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -extldflags "-static"
+      - -X github.com/konstructio/colony/configs.Version=v{{.Version}}
 
 archives:
   - format: tar.gz
