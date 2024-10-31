@@ -9,6 +9,7 @@ import (
 
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
@@ -84,17 +85,7 @@ func getInitCommand() *cobra.Command {
 
 			k8sClient.WaitForDeploymentReady(metricsServerDeployment, 300)
 
-			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
-				"app.kubernetes.io/name",
-				"colony-agent",
-				"kube-system",
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding colony-agent deployment: %v ", err.Error())
-			}
-
-			k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
+			time.Sleep(time.Second * 9)
 
 			hegelDeployment, err := k8sClient.ReturnDeploymentObject(
 				"app",
@@ -160,6 +151,18 @@ func getInitCommand() *cobra.Command {
 			if err := k8sClient.CreateAPIKeySecret(ctx, apiKey); err != nil {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
+
+			// colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
+			// 	"app.kubernetes.io/name",
+			// 	"colony-agent",
+			// 	"kube-system",
+			// 	180,
+			// )
+			// if err != nil {
+			// 	return fmt.Errorf("error finding colony-agent deployment: %v ", err.Error())
+			// }
+
+			// k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
 
 			log.Info("Applying tink templates")
 			templates, err := colonyApi.GetSystemTemplates(ctx)
