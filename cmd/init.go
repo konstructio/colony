@@ -90,7 +90,7 @@ func getInitCommand() *cobra.Command {
 			hegelDeployment, err := k8sClient.ReturnDeploymentObject(
 				"app",
 				"hegel",
-				"kube-system",
+				"tink-system",
 				180,
 			)
 			if err != nil {
@@ -102,7 +102,7 @@ func getInitCommand() *cobra.Command {
 			rufioDeployment, err := k8sClient.ReturnDeploymentObject(
 				"app",
 				"rufio",
-				"kube-system",
+				"tink-system",
 				180,
 			)
 			if err != nil {
@@ -114,7 +114,7 @@ func getInitCommand() *cobra.Command {
 			smeeDeployment, err := k8sClient.ReturnDeploymentObject(
 				"app",
 				"smee",
-				"kube-system",
+				"tink-system",
 				180,
 			)
 			if err != nil {
@@ -126,7 +126,7 @@ func getInitCommand() *cobra.Command {
 			tinkServerDeployment, err := k8sClient.ReturnDeploymentObject(
 				"app",
 				"tink-server",
-				"kube-system",
+				"tink-system",
 				180,
 			)
 			if err != nil {
@@ -138,7 +138,7 @@ func getInitCommand() *cobra.Command {
 			tinkControllerDeployment, err := k8sClient.ReturnDeploymentObject(
 				"app",
 				"tink-controller",
-				"kube-system",
+				"tink-system",
 				180,
 			)
 			if err != nil {
@@ -155,7 +155,7 @@ func getInitCommand() *cobra.Command {
 			// colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
 			// 	"app.kubernetes.io/name",
 			// 	"colony-agent",
-			// 	"kube-system",
+			// 	"tink-system",
 			// 	180,
 			// )
 			// if err != nil {
