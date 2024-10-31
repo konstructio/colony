@@ -82,9 +82,79 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding metrics-server deployment: %v ", err.Error())
 			}
 
-			// TODO need to add the tink stack deployments and colony-agent deployment
-
 			k8sClient.WaitForDeploymentReady(metricsServerDeployment, 300)
+
+			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
+				"app.kubernetes.io/name",
+				"colony-agent",
+				"kube-system",
+				180,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding colony-agent deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
+
+			hegelDeployment, err := k8sClient.ReturnDeploymentObject(
+				"app",
+				"hegel",
+				"kube-system",
+				180,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding hegel deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(hegelDeployment, 300)
+
+			rufioDeployment, err := k8sClient.ReturnDeploymentObject(
+				"app",
+				"rufio",
+				"kube-system",
+				180,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding rufio deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(rufioDeployment, 300)
+
+			smeeDeployment, err := k8sClient.ReturnDeploymentObject(
+				"app",
+				"smee",
+				"kube-system",
+				180,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding smee deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(smeeDeployment, 300)
+
+			tinkServerDeployment, err := k8sClient.ReturnDeploymentObject(
+				"app",
+				"tink-server",
+				"kube-system",
+				180,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding tink-server deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(tinkServerDeployment, 300)
+
+			tinkControllerDeployment, err := k8sClient.ReturnDeploymentObject(
+				"app",
+				"tink-controller",
+				"kube-system",
+				180,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding tink-controller deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(tinkControllerDeployment, 300)
 
 			// Create a secret in the cluster
 			if err := k8sClient.CreateAPIKeySecret(ctx, apiKey); err != nil {
@@ -112,7 +182,7 @@ func getInitCommand() *cobra.Command {
 
 	// cmd.Flags().StringVar(&apiKey, "apiKey", "", "api key for interacting with colony cloud (required)")
 	cmd.Flags().StringVar(&apiURL, "apiURL", "https://colony-api-virtual.konstruct.io", "api url for interacting with colony cloud (required)")
-	cmd.Flags().StringVar(&loadBalancer, "loadBalancer", "10.0.10.2", "load balancer ip address (required)")
+	cmd.Flags().StringVar(&loadBalancer, "loadBalancer", "10.90.14.2", "load balancer ip address (required)")
 
 	return cmd
 }

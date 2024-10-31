@@ -114,8 +114,8 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 		},
 		{
 			Type:   mount.TypeBind,
-			Source: fmt.Sprintf("%s/laptop/k3s-bootstrap/k3s.yaml", pwd),
-			Target: "/var/lib/rancher/k3s/server/manifests/k3s.yaml",
+			Source: fmt.Sprintf("%s/laptop/k3s-bootstrap/colony.yaml", pwd),
+			Target: "/var/lib/rancher/k3s/server/manifests/colony.yaml",
 		},
 		{
 			Type:   mount.TypeTmpfs,
