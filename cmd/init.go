@@ -1,23 +1,22 @@
 package cmd
 
 import (
+	// "fmt"
+	// "os"
+
+	// "github.com/konstructio/colony/internal/exec"
+	// "github.com/konstructio/colony/internal/k8s"
+
 	"fmt"
 	"os"
 
 	"github.com/konstructio/colony/internal/colony"
-	"github.com/konstructio/colony/internal/exec"
+	"github.com/konstructio/colony/internal/constants"
+	"github.com/konstructio/colony/internal/docker"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/util/yaml"
-)
-
-const (
-	helmChartName     = "colony"
-	helmChartRepoName = "konstruct"
-	helmChartRepoURL  = "https://charts.konstruct.io"
-	helmChartVersion  = "0.1.0"
-	namespace         = "tink-system"
+	// "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 func getInitCommand() *cobra.Command {
@@ -25,11 +24,14 @@ func getInitCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "initialize colony in your management cluster",
-		Long:  `initialize colony in your management cluster`,
+		Short: "initialize colony on your host to provision in your data center",
+		Long:  `initialize colony on your host to provision in your data center`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log := logger.New(logger.Debug)
 			ctx := cmd.Context()
+
+			// leaving this for testing
+			os.Setenv("COLONY_API_KEY", "20a711e6-eee0-4ef8-82a0-c5e849575419")
 
 			// Check if an API key comes from the environment
 			if apiKey == "" {
@@ -38,15 +40,51 @@ func getInitCommand() *cobra.Command {
 
 			colonyApi := colony.New(apiURL, apiKey)
 			if err := colonyApi.ValidateAPIKey(ctx); err != nil {
-				return fmt.Errorf("error validating api key: %w", err)
+				return fmt.Errorf("error validating colony api key: %s %v \n visit https://colony.konstruct.io to get a valid api key", apiKey, err.Error())
 			}
 
-			log.Info("initializing colony cloud with api key:", apiKey)
+			log.Info("colony api key provided is valid")
 
-			k8sClient, err := k8s.New(log, "/home/vagrant/.kube/config")
+			dockerCLI, err := docker.New(log)
 			if err != nil {
-				return fmt.Errorf("error creating Kubernetes client: %w", err)
+				return fmt.Errorf("error creating docker client: %v ", err.Error())
 			}
+
+			err = dockerCLI.CreateColonyK3sContainer(ctx)
+			if err != nil {
+				return fmt.Errorf("error creating container: %v ", err.Error())
+			}
+
+			k8sClient, err := k8s.New(log, "./"+constants.KubeconfigHostPath)
+			if err != nil {
+				return fmt.Errorf("error creating Kubernetes client: %v ", err.Error())
+			}
+
+			coreDNSDeployment, err := k8sClient.ReturnDeploymentObject(
+				"kubernetes.io/name",
+				"CoreDNS",
+				"kube-system",
+				50,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding coredns deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(coreDNSDeployment, 300)
+
+			metricsServerDeployment, err := k8sClient.ReturnDeploymentObject(
+				"k8s-app",
+				"metrics-server",
+				"kube-system",
+				50,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding metrics-server deployment: %v ", err.Error())
+			}
+
+			// TODO need to add the tink stack deployments and colony-agent deployment
+
+			k8sClient.WaitForDeploymentReady(metricsServerDeployment, 300)
 
 			// Create a secret in the cluster
 			if err := k8sClient.CreateAPIKeySecret(ctx, apiKey); err != nil {
@@ -68,146 +106,12 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error applying templates: %w", err)
 			}
 
-			log.Info("Installing Colony helm chart")
-			res, err := exec.ExecuteCommand(
-				log,
-				"helm",
-				"-n",
-				"tink-system",
-				"repo",
-				"list",
-				"-o",
-				"yaml",
-			)
-			if err != nil {
-				log.Warn("no repos found on helm:" + err.Error())
-			}
-
-			var existingHelmRepositories []struct {
-				Name string `yaml:"name"`
-				URL  string `yaml:"url"`
-			}
-			if res != "" {
-				if err := yaml.Unmarshal([]byte(res), &existingHelmRepositories); err != nil {
-					return fmt.Errorf("could not get existing helm repositories: %w", err)
-				}
-			}
-
-			repoExists := func() bool {
-				for _, repo := range existingHelmRepositories {
-					if repo.Name == helmChartRepoName && repo.URL == helmChartRepoURL {
-						return true
-					}
-				}
-				return false
-			}()
-
-			if !repoExists {
-				// Add helm chart repository
-				_, err = exec.ExecuteCommand(
-					log,
-					"helm",
-					"repo",
-					"add",
-					helmChartRepoName,
-					helmChartRepoURL,
-				)
-				if err != nil {
-					return fmt.Errorf("error adding helm chart repository: %w", err)
-				}
-				log.Infof("Added Colony helm chart repository")
-			} else {
-				log.Infof("Colony helm chart repository already added")
-			}
-
-			// Update helm chart repository locally
-			_, err = exec.ExecuteCommand(
-				log,
-				"helm",
-				"repo",
-				"update",
-			)
-			if err != nil {
-				return fmt.Errorf("error updating helm chart repository: %w", err)
-			}
-
-			log.Infof("Colony helm chart repository updated")
-
-			// Determine if helm release has already been installed
-			res, err = exec.ExecuteCommand(
-				log,
-				"helm",
-				"-n",
-				"tink-system",
-				"list",
-				"-o",
-				"yaml",
-				"-A",
-			)
-			if err != nil {
-				log.Infof("error listing current helm repositories installed: %s", err)
-			}
-
-			type helmRelease struct {
-				AppVersion string `yaml:"app_version"`
-				Chart      string `yaml:"chart"`
-				Name       string `yaml:"name"`
-				Namespace  string `yaml:"namespace"`
-				Revision   string `yaml:"revision"`
-				Status     string `yaml:"status"`
-				Updated    string `yaml:"updated"`
-			}
-
-			var existingHelmReleases []helmRelease
-			if err := yaml.Unmarshal([]byte(res), &existingHelmReleases); err != nil {
-				return fmt.Errorf("could not get existing helm releases: %w", err)
-			}
-
-			chartInstalled := func() bool {
-				for _, release := range existingHelmReleases {
-					if release.Name == helmChartName {
-						return true
-					}
-				}
-				return false
-			}()
-
-			if !chartInstalled {
-				installFlags := []string{
-					"install",
-					"--namespace",
-					namespace,
-					helmChartName,
-					"--version",
-					helmChartVersion,
-					"konstruct/colony",
-					"--set",
-					"colony-agent.extraEnvSecrets.API_TOKEN.name=colony-api",
-					"--set",
-					"colony-agent.extraEnvSecrets.API_TOKEN.key=api-key",
-					"--set",
-					fmt.Sprintf("colony-agent.extraEnv.LOAD_BALANCER=%s", loadBalancer),
-					"--set",
-					fmt.Sprintf("colony-agent.extraEnv.COLONY_API_URL=%s", apiURL),
-					"--set",
-					fmt.Sprintf("colony-agent.extraEnv.TALOS_URL_FILES_SOURCE=http://%s:8080", loadBalancer),
-				}
-
-				_, err = exec.ExecuteCommand(log, "helm", installFlags...)
-				if err != nil {
-					return fmt.Errorf("error installing helm chart: %w", err)
-				}
-				log.Info("Colony helm chart installed")
-			} else {
-				log.Info("Colony helm chart already installed")
-			}
-
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&apiKey, "apiKey", "", "api key for interacting with colony cloud (required)")
-	cmd.Flags().StringVar(&apiURL, "apiURL", "", "api url for interacting with colony cloud (required)")
+	// cmd.Flags().StringVar(&apiKey, "apiKey", "", "api key for interacting with colony cloud (required)")
+	cmd.Flags().StringVar(&apiURL, "apiURL", "https://colony-api-virtual.konstruct.io", "api url for interacting with colony cloud (required)")
 	cmd.Flags().StringVar(&loadBalancer, "loadBalancer", "10.0.10.2", "load balancer ip address (required)")
 
 	return cmd
