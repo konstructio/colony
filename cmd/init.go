@@ -8,13 +8,16 @@ import (
 	// "github.com/konstructio/colony/internal/k8s"
 
 	"fmt"
+	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
+	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
@@ -201,21 +204,34 @@ func getInitCommand() *cobra.Command {
 
 			k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
 
-			time.Sleep(time.Second * 33)
 			log.Info("Applying tink templates")
-			templates, err := colonyApi.GetSystemTemplates(ctx)
+			// TODO HACK to skip this for now and use a local file
+			// templates, err := colonyApi.GetSystemTemplates(ctx)
+			// if err != nil {
+			// 	return fmt.Errorf("error getting system templates: %w", err)
+			// }
+
+			// var manifests []string
+			// for _, template := range templates {
+			// 	manifests = append(manifests, template.Template)
+			// }
+
+			// if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
+			// 	return fmt.Errorf("error applying templates: %w", err)
+			// }
+
+			getTemplatesFromURL()
+			output, err := exec.ExecuteCommand(
+				log,
+				"kubectl",
+				"apply",
+				"-f",
+				"./templates.yaml",
+			)
 			if err != nil {
-				return fmt.Errorf("error getting system templates: %w", err)
+				return fmt.Errorf("error with kubectl")
 			}
-
-			var manifests []string
-			for _, template := range templates {
-				manifests = append(manifests, template.Template)
-			}
-
-			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
-				return fmt.Errorf("error applying templates: %w", err)
-			}
+			log.Info(output)
 
 			return nil
 		},
@@ -229,4 +245,31 @@ func getInitCommand() *cobra.Command {
 }
 
 func init() {
+}
+
+func getTemplatesFromURL() {
+	url := "https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/templates.yaml"
+	filepath := "templates.yaml"
+
+	// Download the file
+	response, err := http.Get(url)
+	if err != nil {
+		panic(err)
+	}
+	defer response.Body.Close()
+
+	// Create a new file to save the downloaded content
+	outFile, err := os.Create(filepath)
+	if err != nil {
+		panic(err)
+	}
+	defer outFile.Close()
+
+	// Copy the response body to the file
+	_, err = io.Copy(outFile, response.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	println("File downloaded successfully to", filepath)
 }
