@@ -59,6 +59,9 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating container: %v ", err.Error())
 			}
 
+			// TODO hack, the kube api is not always ready need to figure out a better condition
+			time.Sleep(time.Second * 7)
+
 			k8sClient, err := k8s.New(log, "./"+constants.KubeconfigHostPath)
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %v ", err.Error())
@@ -166,7 +169,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
 
-			k8sconfig, err := ioutil.ReadFile(constants.KubeconfigDockerPath)
+			k8sconfig, err := ioutil.ReadFile(constants.KubeconfigHostPath)
 			if err != nil {
 				return fmt.Errorf("error reading file: %v", err.Error())
 			}
