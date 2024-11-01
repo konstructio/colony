@@ -97,6 +97,18 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 	return nil
 }
 
+func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
+
+	s, err := c.clientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("error creating secret: %v ", err.Error())
+	}
+
+	c.logger.Debugf("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
+
+	return nil
+}
+
 func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 	decoderUnstructured := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 

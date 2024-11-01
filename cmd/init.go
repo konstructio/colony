@@ -8,6 +8,7 @@ import (
 	// "github.com/konstructio/colony/internal/k8s"
 
 	"fmt"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	// "k8s.io/apimachinery/pkg/util/yaml"
 )
 
@@ -147,23 +150,55 @@ func getInitCommand() *cobra.Command {
 
 			k8sClient.WaitForDeploymentReady(tinkControllerDeployment, 300)
 
+			// Create the secret
+			apiKeySecret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "colony-api",
+					Namespace: "tink-system",
+				},
+				Data: map[string][]byte{
+					"api-key": []byte(apiKey),
+				},
+			}
+
 			// Create a secret in the cluster
-			if err := k8sClient.CreateAPIKeySecret(ctx, apiKey); err != nil {
+			if err := k8sClient.CreateSecret(ctx, apiKeySecret); err != nil {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
 
-			// colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
-			// 	"app.kubernetes.io/name",
-			// 	"colony-agent",
-			// 	"tink-system",
-			// 	180,
-			// )
-			// if err != nil {
-			// 	return fmt.Errorf("error finding colony-agent deployment: %v ", err.Error())
-			// }
+			k8sconfig, err := ioutil.ReadFile(constants.KubeconfigDockerPath)
+			if err != nil {
+				return fmt.Errorf("error reading file: %v", err.Error())
+			}
 
-			// k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
+			mgmtKubeConfigSecret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mgmt-kubeconfig",
+					Namespace: "tink-system",
+				},
+				Data: map[string][]byte{
+					"kubeconfig": []byte(k8sconfig),
+				},
+			}
 
+			// Create a secret in the cluster
+			if err := k8sClient.CreateSecret(ctx, mgmtKubeConfigSecret); err != nil {
+				return fmt.Errorf("error creating secret: %w", err)
+			}
+
+			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
+				"app.kubernetes.io/name",
+				"colony-agent",
+				"tink-system",
+				180,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding colony-agent deployment: %v ", err.Error())
+			}
+
+			k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
+
+			time.Sleep(time.Second * 33)
 			log.Info("Applying tink templates")
 			templates, err := colonyApi.GetSystemTemplates(ctx)
 			if err != nil {
