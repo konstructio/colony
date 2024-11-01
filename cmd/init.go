@@ -17,7 +17,6 @@ import (
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
-	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
@@ -204,34 +203,26 @@ func getInitCommand() *cobra.Command {
 
 			k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
 
-			log.Info("Applying tink templates")
-			// TODO HACK to skip this for now and use a local file
-			// templates, err := colonyApi.GetSystemTemplates(ctx)
-			// if err != nil {
-			// 	return fmt.Errorf("error getting system templates: %w", err)
-			// }
-
-			// var manifests []string
-			// for _, template := range templates {
-			// 	manifests = append(manifests, template.Template)
-			// }
-
-			// if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
-			// 	return fmt.Errorf("error applying templates: %w", err)
-			// }
-
-			getTemplatesFromURL()
-			output, err := exec.ExecuteCommand(
-				log,
-				"kubectl",
-				"apply",
-				"-f",
-				"./templates.yaml",
-			)
+			k8sClient, err = k8s.New(log, "./"+constants.KubeconfigHostPath)
 			if err != nil {
-				return fmt.Errorf("error with kubectl")
+				return fmt.Errorf("error creating Kubernetes client: %v ", err.Error())
 			}
-			log.Info(output)
+
+			log.Info("Applying tink templates")
+			templates, err := colonyApi.GetSystemTemplates(ctx)
+			if err != nil {
+				return fmt.Errorf("error getting system templates: %w", err)
+			}
+
+			var manifests []string
+			for _, template := range templates {
+				manifests = append(manifests, template.Template)
+			}
+			log.Info()
+
+			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
+				return fmt.Errorf("error applying templates: %w", err)
+			}
 
 			return nil
 		},
