@@ -36,9 +36,6 @@ func getInitCommand() *cobra.Command {
 			log := logger.New(logger.Debug)
 			ctx := cmd.Context()
 
-			// leaving this for testing
-			os.Setenv("COLONY_API_KEY", "20a711e6-eee0-4ef8-82a0-c5e849575419")
-
 			// Check if an API key comes from the environment
 			if apiKey == "" {
 				apiKey = os.Getenv("COLONY_API_KEY")
