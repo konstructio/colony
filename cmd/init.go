@@ -67,6 +67,7 @@ func getInitCommand() *cobra.Command {
 			}
 
 			coreDNSDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"kubernetes.io/name",
 				"CoreDNS",
 				"kube-system",
@@ -76,9 +77,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding coredns deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(coreDNSDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 300)
 
 			metricsServerDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"k8s-app",
 				"metrics-server",
 				"kube-system",
@@ -88,9 +90,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding metrics-server deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(metricsServerDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 300)
 
 			hegelDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"app",
 				"hegel",
 				"tink-system",
@@ -100,9 +103,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding hegel deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(hegelDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, hegelDeployment, 300)
 
 			rufioDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"app",
 				"rufio",
 				"tink-system",
@@ -112,9 +116,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding rufio deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(rufioDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, rufioDeployment, 300)
 
 			smeeDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"app",
 				"smee",
 				"tink-system",
@@ -124,9 +129,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding smee deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(smeeDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, smeeDeployment, 300)
 
 			tinkServerDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"app",
 				"tink-server",
 				"tink-system",
@@ -136,9 +142,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding tink-server deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(tinkServerDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, tinkServerDeployment, 300)
 
 			tinkControllerDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"app",
 				"tink-controller",
 				"tink-system",
@@ -148,7 +155,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding tink-controller deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(tinkControllerDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, tinkControllerDeployment, 300)
 
 			// Create the secret
 			apiKeySecret := &v1.Secret{
@@ -187,6 +194,7 @@ func getInitCommand() *cobra.Command {
 			}
 
 			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
 				"app.kubernetes.io/name",
 				"colony-agent",
 				"tink-system",
@@ -196,7 +204,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding colony-agent deployment: %w ", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(colonyAgentDeployment, 300)
+			k8sClient.WaitForDeploymentReady(ctx, colonyAgentDeployment, 300)
 
 			k8sClient, err = k8s.New(log, "./"+constants.KubeconfigHostPath)
 			if err != nil {

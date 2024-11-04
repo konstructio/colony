@@ -158,7 +158,7 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 }
 
 // WaitForDeploymentReady waits for a target Deployment to become ready
-func (c *Client) WaitForDeploymentReady(deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
+func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
 	log := logger.New(logger.Debug)
 	deploymentName := deployment.Name
 	namespace := deployment.Namespace
@@ -171,9 +171,9 @@ func (c *Client) WaitForDeploymentReady(deployment *appsv1.Deployment, timeoutSe
 
 	log.Info(fmt.Sprintf("waiting for deployment %q in namespace %q to be ready - this could take up to %d seconds", deploymentName, namespace, timeoutSeconds))
 
-	err := wait.PollImmediate(5*time.Second, time.Duration(timeoutSeconds)*time.Second, func() (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
 		// Get the latest Deployment object
-		currentDeployment, err := c.clientSet.AppsV1().Deployments(namespace).Get(context.Background(), deploymentName, metav1.GetOptions{})
+		currentDeployment, err := c.clientSet.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
 		if err != nil {
 			// If we couldn't connect, retry
 			if isNetworkingError(err) {
@@ -222,12 +222,12 @@ func isNetworkingError(err error) bool {
 	return false
 }
 
-func (c *Client) ReturnDeploymentObject(matchLabel string, matchLabelValue string, namespace string, timeoutSeconds int) (*appsv1.Deployment, error) {
-	timeout := time.Duration(timeoutSeconds) * time.Second
+func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, matchLabelValue string, namespace string, timeoutSeconds int) (*appsv1.Deployment, error) {
 	var deployment *appsv1.Deployment
 
-	err := wait.PollImmediate(15*time.Second, timeout, func() (bool, error) {
-		deployments, err := c.clientSet.AppsV1().Deployments(namespace).List(context.Background(), metav1.ListOptions{
+	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds), true, func(ctx context.Context) (bool, error) {
+
+		deployments, err := c.clientSet.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("%s=%s", matchLabel, matchLabelValue),
 		})
 		if err != nil {
@@ -257,8 +257,7 @@ func (c *Client) ReturnDeploymentObject(matchLabel string, matchLabelValue strin
 		return true, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error waiting for Deployment: %w ", err)
+		return nil, fmt.Errorf("error waiting for Deployment: %w", err)
 	}
-
 	return deployment, nil
 }
