@@ -46,7 +46,7 @@ func getColonyK3sContainerIDAndName(ctx context.Context, c *Client) (string, str
 			return container.ID, container.Names[0], nil
 		}
 	}
-	return "", "", fmt.Errorf("container %s not found", constants.ColonyK3sContainerName)
+	return "", "", fmt.Errorf("container %q not found", constants.ColonyK3sContainerName)
 }
 
 func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
@@ -55,13 +55,13 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 
 	colonyK3sContainerID, colonyK3sContainerName, err := getColonyK3sContainerIDAndName(ctx, c)
 	if err != nil {
-		return fmt.Errorf("error getting %s container: %v", constants.ColonyK3sContainerName, err)
+		return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
 	}
 	c.log.Info(fmt.Sprintf("found container name %s with ID %s  ", strings.TrimPrefix(colonyK3sContainerName, "/"), colonyK3sContainerID[:constants.DefaultDockerIDLength]))
 
 	err = c.cli.ContainerRemove(ctx, colonyK3sContainerID, containerTypes.RemoveOptions{Force: true})
 	if err != nil {
-		return fmt.Errorf("error removing container: %v", err)
+		return fmt.Errorf("error removing container: %w ", err)
 	}
 	return nil
 }
@@ -72,16 +72,19 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 	defer c.cli.Close()
 
 	// check for an existing colony-k3s container
-	colonyK3sContainerID, _, _ := getColonyK3sContainerIDAndName(ctx, c)
+	colonyK3sContainerID, _, err := getColonyK3sContainerIDAndName(ctx, c)
+	if err != nil {
+		return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
+	}
 	if colonyK3sContainerID != "" {
-		return fmt.Errorf("%s container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
+		return fmt.Errorf("%q container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
 	}
 
 	// Pull the rancher/k3s image if it’s not already available
 	imageName := "rancher/k3s:v1.30.2-k3s1"
 	reader, err := c.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
-		log.Error("Error pulling image %s: %v", imageName, err)
+		return fmt.Errorf("error pulling image %s: %w ", imageName, err)
 	}
 	fmt.Printf("Pulled image %s successfully\n", imageName)
 
@@ -98,7 +101,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 
 	pwd, err := os.Getwd()
 	if err != nil {
-		log.Error("Error getting current working directory: %v", err)
+		return fmt.Errorf("error getting current working directory: %w ", err)
 	}
 
 	mounts := []mount.Mount{
@@ -143,7 +146,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 	}, nil, nil, constants.ColonyK3sContainerName)
 
 	if err != nil {
-		log.Error("Error creating container: %v", err)
+		log.Error("Error creating container: %w ", err)
 	}
 
 	fmt.Printf("Created container with ID %s\n", resp.ID)

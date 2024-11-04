@@ -45,22 +45,22 @@ func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 	// Create clientset, which is used to run operations against the API
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("error creating kubernetes client: %s", err.Error())
+		return nil, fmt.Errorf("error creating kubernetes client: %w ", err)
 	}
 
 	dynamic, err := dynamic.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("error creating dynamic client: %s", err.Error())
+		return nil, fmt.Errorf("error creating dynamic client: %w ", err)
 	}
 
 	discovery, err := discovery.NewDiscoveryClientForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("error creating discovery client: %s", err.Error())
+		return nil, fmt.Errorf("error creating discovery client: %w ", err)
 	}
 
 	groupResources, err := restmapper.GetAPIGroupResources(discovery)
 	if err != nil {
-		return nil, fmt.Errorf("error getting API group resources: %s", err.Error())
+		return nil, fmt.Errorf("error getting API group resources: %w ", err)
 	}
 
 	restmapper := restmapper.NewDiscoveryRESTMapper(groupResources)
@@ -89,10 +89,10 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 
 	s, err := c.clientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("error creating secret: %v ", err.Error())
+		return fmt.Errorf("error creating secret: %w ", err)
 	}
 
-	c.logger.Debugf("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
+	c.logger.Debugf("created Secret %q in Namespace %q\n", s.Name, s.Namespace)
 
 	return nil
 }
@@ -101,10 +101,10 @@ func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
 
 	s, err := c.clientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("error creating secret: %v ", err.Error())
+		return fmt.Errorf("error creating secret: %w ", err)
 	}
 
-	c.logger.Debugf("created Secret %s in Namespace %s\n", s.Name, s.Namespace)
+	c.logger.Debugf("created Secret %q in Namespace %q\n", s.Name, s.Namespace)
 
 	return nil
 }
@@ -116,7 +116,7 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 		var obj unstructured.Unstructured
 		_, gvk, err := decoderUnstructured.Decode([]byte(manifest), nil, &obj)
 		if err != nil {
-			return fmt.Errorf("error decoding manifest: %v ", err.Error())
+			return fmt.Errorf("error decoding manifest: %w ", err)
 		}
 
 		// Set the appropriate GVK
@@ -125,7 +125,7 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 		// Use the restmapper to get the GVR
 		mapping, err := c.restmapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 		if err != nil {
-			return fmt.Errorf("unable to map manifest to a Kubernetes resource: %v ", err.Error())
+			return fmt.Errorf("unable to map manifest to a Kubernetes resource: %w ", err)
 		}
 
 		// Find the preferred version mapping
@@ -146,11 +146,11 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 				})
 
 				if retryErr != nil {
-					return fmt.Errorf("error updating resource: %v ", retryErr.Error())
+					return fmt.Errorf("error updating resource: %w ", retryErr)
 				}
 			}
 
-			return fmt.Errorf("error creating resource: %v ", err.Error())
+			return fmt.Errorf("error creating resource: %w ", err)
 		}
 	}
 
@@ -177,11 +177,11 @@ func (c *Client) WaitForDeploymentReady(deployment *appsv1.Deployment, timeoutSe
 		if err != nil {
 			// If we couldn't connect, retry
 			if isNetworkingError(err) {
-				log.Warn("connection error, retrying: %v ", err.Error())
+				log.Warn("connection error, retrying: %w ", err)
 				return false, nil
 			}
 
-			return false, fmt.Errorf("error listing statefulsets: %v ", err.Error())
+			return false, fmt.Errorf("error listing statefulsets: %w ", err)
 		}
 
 		if currentDeployment.Status.ReadyReplicas == desiredReplicas {
@@ -237,7 +237,7 @@ func (c *Client) ReturnDeploymentObject(matchLabel string, matchLabelValue strin
 			}
 
 			// if we got an error, return it
-			return false, fmt.Errorf("error getting Deployment: %v ", err.Error())
+			return false, fmt.Errorf("error getting Deployment: %w ", err)
 		}
 
 		// if we couldn't find any deployments, ask to try again
@@ -257,7 +257,7 @@ func (c *Client) ReturnDeploymentObject(matchLabel string, matchLabelValue strin
 		return true, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error waiting for Deployment: %v ", err.Error())
+		return nil, fmt.Errorf("error waiting for Deployment: %w ", err)
 	}
 
 	return deployment, nil
