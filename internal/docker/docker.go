@@ -24,7 +24,7 @@ type Client struct {
 func New(logger *logger.Logger) (*Client, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, fmt.Errorf("error creating docker client: %w", err)
+		return nil, fmt.Errorf("error creating docker client: %w ", err)
 	}
 
 	return &Client{
@@ -38,7 +38,7 @@ func getColonyK3sContainerIDAndName(ctx context.Context, c *Client) (string, str
 
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
-		return "", "", fmt.Errorf("error listing containers on host: %w", err)
+		return "", "", fmt.Errorf("error listing containers on host: %w ", err)
 	}
 
 	for _, container := range containers {

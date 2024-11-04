@@ -43,7 +43,7 @@ func New(baseURL, token string) *API {
 func (a *API) ValidateAPIKey(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+validateEndpoint, nil)
 	if err != nil {
-		return fmt.Errorf("error creating request: %w", err)
+		return fmt.Errorf("error creating request: %w ", err)
 	}
 
 	req.Header.Add("Content-Type", "application/json")
@@ -52,7 +52,7 @@ func (a *API) ValidateAPIKey(ctx context.Context) error {
 
 	res, err := a.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("error making request: %w", err)
+		return fmt.Errorf("error making request: %w ", err)
 	}
 	defer res.Body.Close()
 
@@ -64,7 +64,7 @@ func (a *API) ValidateAPIKey(ctx context.Context) error {
 		IsValid bool `json:"isValid"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-		return fmt.Errorf("error decoding response: %w", err)
+		return fmt.Errorf("error decoding response: %w ", err)
 	}
 
 	if !r.IsValid {
@@ -86,7 +86,7 @@ type Template struct {
 func (a *API) GetSystemTemplates(ctx context.Context) ([]Template, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/templates/all/system", nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating request: %w", err)
+		return nil, fmt.Errorf("error creating request: %w ", err)
 	}
 
 	req.Header.Add("Content-Type", "application/json")
@@ -95,13 +95,13 @@ func (a *API) GetSystemTemplates(ctx context.Context) ([]Template, error) {
 
 	res, err := a.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error making request: %w", err)
+		return nil, fmt.Errorf("error making request: %w ", err)
 	}
 	defer res.Body.Close()
 
 	var templates []Template
 	if err := json.NewDecoder(res.Body).Decode(&templates); err != nil {
-		return nil, fmt.Errorf("error decoding response: %w", err)
+		return nil, fmt.Errorf("error decoding response: %w ", err)
 	}
 
 	return templates, nil

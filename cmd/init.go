@@ -163,7 +163,7 @@ func getInitCommand() *cobra.Command {
 
 			// Create a secret in the cluster
 			if err := k8sClient.CreateSecret(ctx, apiKeySecret); err != nil {
-				return fmt.Errorf("error creating secret: %w", err)
+				return fmt.Errorf("error creating secret: %w ", err)
 			}
 
 			k8sconfig, err := ioutil.ReadFile(constants.KubeconfigHostPath)

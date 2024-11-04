@@ -193,7 +193,7 @@ func (c *Client) WaitForDeploymentReady(deployment *appsv1.Deployment, timeoutSe
 		return false, nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("the Deployment %q in Namespace %q was not ready within the timeout period: %v ", deploymentName, namespace, err.Error())
+		return false, fmt.Errorf("the Deployment %q in Namespace %q was not ready within the timeout period: %w ", deploymentName, namespace, err)
 	}
 
 	return true, nil
