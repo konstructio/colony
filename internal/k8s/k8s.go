@@ -39,7 +39,7 @@ func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 	// Build configuration instance from the provided config file
 	config, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
 	if err != nil {
-		return nil, fmt.Errorf("unable to locate kubeconfig file - checked path: %s", kubeConfig)
+		return nil, fmt.Errorf("unable to locate kubeconfig file - checked path: %q", kubeConfig)
 	}
 
 	// Create clientset, which is used to run operations against the API

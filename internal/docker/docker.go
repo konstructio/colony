@@ -57,7 +57,7 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
 	}
-	c.log.Info(fmt.Sprintf("found container name %s with ID %s  ", strings.TrimPrefix(colonyK3sContainerName, "/"), colonyK3sContainerID[:constants.DefaultDockerIDLength]))
+	c.log.Info(fmt.Sprintf("found container name %q with ID %q  ", strings.TrimPrefix(colonyK3sContainerName, "/"), colonyK3sContainerID[:constants.DefaultDockerIDLength]))
 
 	err = c.cli.ContainerRemove(ctx, colonyK3sContainerID, containerTypes.RemoveOptions{Force: true})
 	if err != nil {
@@ -84,7 +84,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 	imageName := "rancher/k3s:v1.30.2-k3s1"
 	reader, err := c.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
-		return fmt.Errorf("error pulling image %s: %w ", imageName, err)
+		return fmt.Errorf("error pulling image %q: %w ", imageName, err)
 	}
 	fmt.Printf("Pulled image %s successfully\n", imageName)
 
@@ -156,25 +156,35 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 	}
 
 	waitInterval := 2 * time.Second
+	timeout := 15 * time.Second
 
-	fmt.Printf("Checking for file %s every %v...\n", fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval)
-	waitForKubeconfig(fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval)
+	fmt.Printf("Checking for file %q every %d...\n", fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval)
+	err = waitForFile(fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval, timeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for kubeconfig file: %w ", err)
+	}
 
 	return nil
 
 }
 
-func waitForKubeconfig(filename string, interval time.Duration) {
+func waitForFile(filename string, interval, timeout time.Duration) error {
+	timeoutCh := time.After(timeout)
+
 	for {
-		if _, err := os.Stat(filename); err == nil {
-			fmt.Printf("%s created for cluster connectivity\n", filename)
-			break
-		} else if os.IsNotExist(err) {
-			fmt.Printf("waiting for file %s...\n", filename)
-			time.Sleep(interval) // Wait before checking again
-		} else {
-			fmt.Printf("error checking file: %v\n", err)
-			break
+		select {
+		case <-timeoutCh:
+			return fmt.Errorf("timeout reached while waiting for file %s", filename)
+		default:
+			if _, err := os.Stat(filename); err == nil {
+				fmt.Printf("%s created file\n", filename)
+				return nil
+			} else if os.IsNotExist(err) {
+				fmt.Printf("waiting for file %s...\n", filename)
+				time.Sleep(interval) // Wait before checking again
+			} else {
+				return fmt.Errorf("error checking file: %v", err)
+			}
 		}
 	}
 }

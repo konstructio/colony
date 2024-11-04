@@ -43,7 +43,7 @@ func getInitCommand() *cobra.Command {
 
 			colonyApi := colony.New(apiURL, apiKey)
 			if err := colonyApi.ValidateAPIKey(ctx); err != nil {
-				return fmt.Errorf("error validating colony api key: %s %w \n visit https://colony.konstruct.io to get a valid api key", apiKey, err)
+				return fmt.Errorf("error validating colony api key: %q %w \n visit https://colony.konstruct.io to get a valid api key", apiKey, err)
 			}
 
 			log.Info("colony api key provided is valid")
@@ -213,7 +213,6 @@ func getInitCommand() *cobra.Command {
 			for _, template := range templates {
 				manifests = append(manifests, template.Template)
 			}
-			log.Info()
 
 			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
 				return fmt.Errorf("error applying templates: %w ", err)
