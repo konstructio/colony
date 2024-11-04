@@ -5,4 +5,5 @@ const (
 	DefaultDockerIDLength  = 12
 	KubeconfigHostPath     = "kubeconfig"
 	KubeconfigDockerPath   = "/output/kubeconfig"
+	ColonyYamlPath         = "./colony.yaml"
 )

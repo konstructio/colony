@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"strings"
@@ -13,12 +14,18 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/konstructio/colony/internal/constants"
+	"github.com/konstructio/colony/internal/download"
 	"github.com/konstructio/colony/internal/logger"
 )
 
 type Client struct {
 	cli *client.Client
 	log *logger.Logger
+}
+
+type ColonyTokens struct {
+	LoadBalancerIP        string
+	LoadBalancerInterface string
 }
 
 func New(logger *logger.Logger) (*Client, error) {
@@ -66,8 +73,28 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
+func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, loadBalancerInterface string) error {
 	log := logger.New(logger.Debug)
+
+	// TODO  tag a new repo for permanent housing, removes templates from database
+	colonyTemplateURL := "https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/helm/colony.yaml.tmpl"
+	filename := fmt.Sprintf("./%s.tmpl", constants.ColonyYamlPath)
+
+	err := download.FileFromURL(colonyTemplateURL, filename)
+	if err != nil {
+		return fmt.Errorf("error downloading file: %w ", err)
+	} else {
+		log.Info("downloaded colony.yaml successfully:", filename)
+	}
+
+	err = hydrateTemplate(ColonyTokens{
+		LoadBalancerIP:        loadBalancerIP,
+		LoadBalancerInterface: loadBalancerInterface,
+	})
+
+	if err != nil {
+		return fmt.Errorf("error hydrating template: %w ", err)
+	}
 
 	defer c.cli.Close()
 
@@ -86,7 +113,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error pulling image %q: %w ", imageName, err)
 	}
-	fmt.Printf("Pulled image %s successfully\n", imageName)
+	log.Info("Pulled image %s successfully\n", imageName)
 
 	defer reader.Close()
 	// c.cli.ImagePull is asynchronous.
@@ -149,7 +176,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 		log.Error("Error creating container: %w ", err)
 	}
 
-	fmt.Printf("Created container with ID %s\n", resp.ID)
+	log.Info("Created container with ID %s\n", resp.ID)
 
 	if err := c.cli.ContainerStart(ctx, resp.ID, containerTypes.StartOptions{}); err != nil {
 		panic(err)
@@ -158,8 +185,8 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 	waitInterval := 2 * time.Second
 	timeout := 15 * time.Second
 
-	fmt.Printf("Checking for file %q every %d...\n", fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval)
-	err = waitForFile(fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval, timeout)
+	log.Info("Checking for file %q every %d...\n", fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval)
+	err = waitForFile(log, fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval, timeout)
 	if err != nil {
 		return fmt.Errorf("error waiting for kubeconfig file: %w ", err)
 	}
@@ -168,7 +195,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context) error {
 
 }
 
-func waitForFile(filename string, interval, timeout time.Duration) error {
+func waitForFile(log *logger.Logger, filename string, interval, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
 
 	for {
@@ -177,14 +204,38 @@ func waitForFile(filename string, interval, timeout time.Duration) error {
 			return fmt.Errorf("timeout reached while waiting for file %s", filename)
 		default:
 			if _, err := os.Stat(filename); err == nil {
-				fmt.Printf("%s created file\n", filename)
+				log.Info("%s created file\n", filename)
 				return nil
 			} else if os.IsNotExist(err) {
-				fmt.Printf("waiting for file %s...\n", filename)
+				log.Info("waiting for file %s...\n", filename)
 				time.Sleep(interval) // Wait before checking again
 			} else {
 				return fmt.Errorf("error checking file: %v", err)
 			}
 		}
 	}
+}
+
+func hydrateTemplate(colonyTokens ColonyTokens) error {
+
+	tmpl, err := template.ParseFiles(fmt.Sprintf("./%s.tmpl", constants.ColonyYamlPath))
+	if err != nil {
+		return fmt.Errorf("error parsing template: %w", err)
+	}
+
+	outputFile, err := os.Create(fmt.Sprintf("./%s", constants.ColonyYamlPath))
+	if err != nil {
+		return fmt.Errorf("error creating output file: %w", err)
+	}
+	defer outputFile.Close()
+
+	err = tmpl.Execute(outputFile, &ColonyTokens{
+		LoadBalancerIP:        colonyTokens.LoadBalancerIP,
+		LoadBalancerInterface: colonyTokens.LoadBalancerInterface,
+	})
+	if err != nil {
+		return fmt.Errorf("error executing template: %w", err)
+	}
+
+	return nil
 }

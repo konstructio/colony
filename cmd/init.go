@@ -7,16 +7,20 @@ import (
 	// "github.com/konstructio/colony/internal/exec"
 	// "github.com/konstructio/colony/internal/k8s"
 
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
+	"github.com/konstructio/colony/internal/download"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
@@ -26,7 +30,7 @@ import (
 )
 
 func getInitCommand() *cobra.Command {
-	var apiKey, apiURL, loadBalancer string
+	var apiKey, apiURL, loadBalancerIP, loadBalancerInterface string
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -53,7 +57,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating docker client: %w ", err)
 			}
 
-			err = dockerCLI.CreateColonyK3sContainer(ctx)
+			err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface)
 			if err != nil {
 				return fmt.Errorf("error creating container: %w ", err)
 			}
@@ -212,14 +216,37 @@ func getInitCommand() *cobra.Command {
 			}
 
 			log.Info("Applying tink templates")
-			templates, err := colonyApi.GetSystemTemplates(ctx)
+			// templates, err := colonyApi.GetSystemTemplates(ctx)
+			// if err != nil {
+			// 	return fmt.Errorf("error getting system templates: %w ", err)
+			// }
+
+			// var manifests []string
+			// for _, template := range templates {
+			// 	manifests = append(manifests, template.Template)
+			// }
+
+			err = createDirIfNotExist("./templates")
 			if err != nil {
-				return fmt.Errorf("error getting system templates: %w ", err)
+				return fmt.Errorf("error creating directory: %w ", err)
 			}
 
-			var manifests []string
+			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
 			for _, template := range templates {
-				manifests = append(manifests, template.Template)
+				url := fmt.Sprintf("https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/%s", template)
+				filename := fmt.Sprintf("./templates/%s", template)
+				err := download.FileFromURL(url, filename)
+				if err != nil {
+					return fmt.Errorf("error downloading file: %w ", err)
+				} else {
+					log.Info("File downloaded successfully:", filename)
+				}
+
+			}
+
+			manifests, err := readFilesInDir("./templates")
+			if err != nil {
+				return fmt.Errorf("Error: %w ", err)
 			}
 
 			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
@@ -232,7 +259,8 @@ func getInitCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&apiKey, "apiKey", "", "api key for interacting with colony cloud (required)")
 	cmd.Flags().StringVar(&apiURL, "apiURL", "https://colony-api-virtual.konstruct.io", "api url for interacting with colony cloud (required)")
-	cmd.Flags().StringVar(&loadBalancer, "loadBalancer", "10.90.14.2", "load balancer ip address (required)")
+	cmd.Flags().StringVar(&loadBalancerInterface, "loadBalancerInterface", "eth0", "the local network interface for colony to use (required)")
+	cmd.Flags().StringVar(&loadBalancerIP, "loadBalancerIP", "192.168.0.192", "the local network interface for colony to use (required)")
 
 	return cmd
 }
@@ -265,4 +293,38 @@ func getTemplatesFromURL() {
 	}
 
 	println("File downloaded successfully to", filepath)
+}
+
+func createDirIfNotExist(dir string) error {
+	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+		err = os.Mkdir(dir, 0o777)
+		if err != nil {
+			return fmt.Errorf("unable to create directory %q: %w", dir, err)
+		}
+	}
+	return nil
+}
+
+func readFilesInDir(dir string) ([]string, error) {
+
+	var templateFiles []string
+	// Open the directory
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open directory: %v", err)
+	}
+
+	// Loop through each file in the directory
+	for _, file := range files {
+		if file.Mode().IsRegular() { // Check if it's a regular file
+			filePath := filepath.Join(dir, file.Name())
+			content, err := ioutil.ReadFile(filePath) // Read file content
+			if err != nil {
+				return nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
+			}
+			templateFiles = append(templateFiles, string(content))
+		}
+	}
+
+	return templateFiles, nil
 }
