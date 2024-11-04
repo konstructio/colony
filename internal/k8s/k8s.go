@@ -225,7 +225,7 @@ func isNetworkingError(err error) bool {
 func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, matchLabelValue string, namespace string, timeoutSeconds int) (*appsv1.Deployment, error) {
 	var deployment *appsv1.Deployment
 
-	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds), true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
 
 		deployments, err := c.clientSet.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("%s=%s", matchLabel, matchLabelValue),
