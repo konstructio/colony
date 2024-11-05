@@ -229,14 +229,14 @@ func getInitCommand() *cobra.Command {
 			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
 			for _, template := range templates {
 				url := fmt.Sprintf("https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/%s", template)
-				filename := filepath.Join(pwd, template)
+				filename := filepath.Join(pwd, "templates/"+template)
 
 				fmt.Println(filename)
 				err := download.FileFromURL(url, filename)
 				if err != nil {
 					return fmt.Errorf("error downloading file: %w", err)
 				} else {
-					log.Info("File downloaded successfully:", filename)
+					log.Info("downloaded:", filename)
 				}
 
 			}
