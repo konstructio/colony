@@ -7,6 +7,7 @@ import (
 	// "github.com/konstructio/colony/internal/exec"
 	// "github.com/konstructio/colony/internal/k8s"
 
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	// "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -243,11 +245,36 @@ func getInitCommand() *cobra.Command {
 
 			manifests, err := readFilesInDir(filepath.Join(pwd, "templates"))
 			if err != nil {
-				return fmt.Errorf("error: %w", err)
+				return fmt.Errorf("error reading files directory: %w", err)
 			}
 
 			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
 				return fmt.Errorf("error applying templates: %w", err)
+			}
+
+			clusterRoleName := "smee-role"
+
+			patch := []map[string]interface{}{
+				{
+					"op":   "add",
+					"path": "/rules/-",
+					"value": rbacv1.PolicyRule{
+						APIGroups: []string{""},
+						Resources: []string{"hardware", "hardware/status"},
+						Verbs:     []string{"create", "update"},
+					},
+				},
+			}
+
+			// Convert patch to JSON
+			patchBytes, err := json.Marshal(patch)
+			if err != nil {
+				return fmt.Errorf("error marshalling clusterrole patch: %w", err)
+			}
+
+			err = k8sClient.PatchClusterRole(ctx, clusterRoleName, patchBytes)
+			if err != nil {
+				return fmt.Errorf("error patching ClusterRole: %w", err)
 			}
 
 			return nil

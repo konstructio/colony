@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -93,6 +94,23 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 	}
 
 	c.logger.Debugf("created Secret %q in Namespace %q\n", s.Name, s.Namespace)
+
+	return nil
+}
+
+func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, clusterRolePatchBytes []byte) error {
+
+	updatedRole, err := c.clientSet.RbacV1().ClusterRoles().Patch(
+		context.TODO(),
+		clusterRoleName,
+		types.JSONPatchType,
+		clusterRolePatchBytes,
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("error patching ClusterRole: %w", err)
+	}
+	c.logger.Info("Successfully patched ClusterRole %s\n", updatedRole.Name)
 
 	return nil
 }
