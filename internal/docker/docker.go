@@ -133,11 +133,11 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 			Source: pwd,
 			Target: "/output",
 		},
-		// {
-		// 	Type:   mount.TypeVolume,
-		// 	Source: "k3s-server",
-		// 	Target: "/var/lib/rancher/k3s",
-		// },
+		{
+			Type:   mount.TypeVolume,
+			Source: "k3s-server",
+			Target: "/var/lib/rancher/k3s",
+		},
 		{
 			Type:   mount.TypeBind,
 			Source: filepath.Join(pwd, constants.ColonyYamlPath),
