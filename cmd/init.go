@@ -77,32 +77,6 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
-			coreDNSDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"kubernetes.io/name",
-				"CoreDNS",
-				"kube-system",
-				50,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding coredns deployment: %w", err)
-			}
-
-			k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 300)
-
-			metricsServerDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"k8s-app",
-				"metrics-server",
-				"kube-system",
-				50,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding metrics-server deployment: %w", err)
-			}
-
-			k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 300)
-
 			// Create the secret
 			apiKeySecret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -138,6 +112,32 @@ func getInitCommand() *cobra.Command {
 			if err := k8sClient.CreateSecret(ctx, mgmtKubeConfigSecret); err != nil {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
+
+			coreDNSDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
+				"kubernetes.io/name",
+				"CoreDNS",
+				"kube-system",
+				50,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding coredns deployment: %w", err)
+			}
+
+			k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 300)
+
+			metricsServerDeployment, err := k8sClient.ReturnDeploymentObject(
+				ctx,
+				"k8s-app",
+				"metrics-server",
+				"kube-system",
+				50,
+			)
+			if err != nil {
+				return fmt.Errorf("error finding metrics-server deployment: %w", err)
+			}
+
+			k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 300)
 
 			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
 				ctx,
@@ -259,7 +259,7 @@ func getInitCommand() *cobra.Command {
 					"op":   "add",
 					"path": "/rules/-",
 					"value": rbacv1.PolicyRule{
-						APIGroups: []string{""},
+						APIGroups: []string{"tinkerbell.org"},
 						Resources: []string{"hardware", "hardware/status"},
 						Verbs:     []string{"create", "update"},
 					},
