@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
@@ -25,19 +26,19 @@ func getDestroyCommand() *cobra.Command {
 				return fmt.Errorf("error creating docker client: %w", err)
 			}
 
+			pwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("error getting current working directory: %w", err)
+			}
+
 			err = dockerCLI.RemoveColonyK3sContainer(ctx)
 			if err != nil {
 				return fmt.Errorf("error: failed to remove colony container %w", err)
 			}
 
-			if fileExists(constants.KubeconfigHostPath) {
-				err := os.Remove(constants.KubeconfigHostPath)
-				if err != nil {
-					return fmt.Errorf("error removing kubeconfig: %w", err)
-				}
-				log.Info("kubeconfig deleted")
-			} else {
-				log.Info("kubeconfig does not exist, proceeding with remaining deletion")
+			err = deleteFile(filepath.Join(pwd, constants.KubeconfigHostPath))
+			if err != nil {
+				return fmt.Errorf("error: failed to delete kubeconfig file %w", err)
 			}
 
 			log.Info("colony installation removed from host")
@@ -48,7 +49,9 @@ func getDestroyCommand() *cobra.Command {
 	return cmd
 }
 
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return !os.IsNotExist(err)
+func deleteFile(location string) error {
+	if err := os.Remove(location); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("file %q couldn't be deleted: %w", location, err)
+	}
+	return nil
 }

@@ -57,7 +57,12 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating docker client: %w", err)
 			}
 
-			err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface)
+			pwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("error getting current working directory: %w", err)
+			}
+
+			err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface, pwd)
 			if err != nil {
 				return fmt.Errorf("error creating container: %w", err)
 			}
@@ -65,7 +70,7 @@ func getInitCommand() *cobra.Command {
 			// TODO hack, the kube api is not always ready need to figure out a better condition
 			time.Sleep(time.Second * 7)
 
-			k8sClient, err := k8s.New(log, "./"+constants.KubeconfigHostPath)
+			k8sClient, err := k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
@@ -210,23 +215,13 @@ func getInitCommand() *cobra.Command {
 
 			k8sClient.WaitForDeploymentReady(ctx, colonyAgentDeployment, 300)
 
-			k8sClient, err = k8s.New(log, "./"+constants.KubeconfigHostPath)
+			k8sClient, err = k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
 			log.Info("Applying tink templates")
-			// templates, err := colonyApi.GetSystemTemplates(ctx)
-			// if err != nil {
-			// 	return fmt.Errorf("error getting system templates: %w", err)
-			// }
-
-			// var manifests []string
-			// for _, template := range templates {
-			// 	manifests = append(manifests, template.Template)
-			// }
-
-			err = createDirIfNotExist("./templates")
+			err = createDirIfNotExist(filepath.Join(pwd, "templates"))
 			if err != nil {
 				return fmt.Errorf("error creating directory: %w", err)
 			}
@@ -234,7 +229,7 @@ func getInitCommand() *cobra.Command {
 			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
 			for _, template := range templates {
 				url := fmt.Sprintf("https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/%s", template)
-				filename := fmt.Sprintf("./templates/%s", template)
+				filename := filepath.Join(pwd, template)
 				err := download.FileFromURL(url, filename)
 				if err != nil {
 					return fmt.Errorf("error downloading file: %w", err)
@@ -244,7 +239,7 @@ func getInitCommand() *cobra.Command {
 
 			}
 
-			manifests, err := readFilesInDir("./templates")
+			manifests, err := readFilesInDir(filepath.Join(pwd, "templates"))
 			if err != nil {
 				return fmt.Errorf("Error: %w", err)
 			}

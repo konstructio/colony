@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -73,21 +74,21 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, loadBalancerInterface string) error {
+func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, loadBalancerInterface, pwd string) error {
 	log := logger.New(logger.Debug)
 
 	// TODO  tag a new repo for permanent housing, removes templates from database
 	colonyTemplateURL := "https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/helm/colony.yaml.tmpl"
-	filename := fmt.Sprintf("./%s.tmpl", constants.ColonyYamlPath)
+	colonyTemplateYaml := filepath.Join(pwd, fmt.Sprintf("%s.tmpl", constants.ColonyYamlPath))
 
-	err := download.FileFromURL(colonyTemplateURL, filename)
+	err := download.FileFromURL(colonyTemplateURL, colonyTemplateYaml)
 	if err != nil {
 		return fmt.Errorf("error downloading file: %w", err)
 	} else {
-		log.Info("downloaded colony.yaml successfully:", filename)
+		log.Info("downloaded colony.yaml successfully:", colonyTemplateYaml)
 	}
 
-	err = hydrateTemplate(ColonyTokens{
+	err = hydrateTemplate(pwd, ColonyTokens{
 		LoadBalancerIP:        loadBalancerIP,
 		LoadBalancerInterface: loadBalancerInterface,
 	})
@@ -100,9 +101,9 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 
 	// check for an existing colony-k3s container
 	colonyK3sContainerID, _, err := getColonyK3sContainerIDAndName(ctx, c)
-	if err != nil {
-		return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
+	// }
 	if colonyK3sContainerID != "" {
 		return fmt.Errorf("%q container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
 	}
@@ -126,11 +127,6 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		"K3S_KUBECONFIG_MODE=666",
 	}
 
-	pwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("error getting current working directory: %w", err)
-	}
-
 	mounts := []mount.Mount{
 		{
 			Type:   mount.TypeBind,
@@ -144,7 +140,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		},
 		{
 			Type:   mount.TypeBind,
-			Source: fmt.Sprintf("%s/laptop/k3s-bootstrap/colony.yaml", pwd),
+			Source: filepath.Join(pwd, "/colony.yaml"),
 			Target: "/var/lib/rancher/k3s/server/manifests/colony.yaml",
 		},
 		{
@@ -185,8 +181,8 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	waitInterval := 2 * time.Second
 	timeout := 15 * time.Second
 
-	log.Info("Checking for file %q every %d...\n", fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval)
-	err = waitForFile(log, fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval, timeout)
+	log.Infof("Checking for file %s every %d...\n", filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval)
+	err = waitForFile(log, filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval, timeout)
 	if err != nil {
 		return fmt.Errorf("error waiting for kubeconfig file: %w", err)
 	}
@@ -204,26 +200,26 @@ func waitForFile(log *logger.Logger, filename string, interval, timeout time.Dur
 			return fmt.Errorf("timeout reached while waiting for file %s", filename)
 		default:
 			if _, err := os.Stat(filename); err == nil {
-				log.Info("%s created file\n", filename)
+				log.Infof("%s created file\n", filename)
 				return nil
 			} else if os.IsNotExist(err) {
-				log.Info("waiting for file %s...\n", filename)
+				log.Infof("waiting for file %s...\n", filename)
 				time.Sleep(interval) // Wait before checking again
 			} else {
-				return fmt.Errorf("error checking file: %v", err)
+				return fmt.Errorf("error checking file: %w", err)
 			}
 		}
 	}
 }
 
-func hydrateTemplate(colonyTokens ColonyTokens) error {
+func hydrateTemplate(pwd string, colonyTokens ColonyTokens) error {
 
-	tmpl, err := template.ParseFiles(fmt.Sprintf("./%s.tmpl", constants.ColonyYamlPath))
+	tmpl, err := template.ParseFiles(filepath.Join(pwd, fmt.Sprintf("%s.tmpl", constants.ColonyYamlPath)))
 	if err != nil {
 		return fmt.Errorf("error parsing template: %w", err)
 	}
 
-	outputFile, err := os.Create(fmt.Sprintf("./%s", constants.ColonyYamlPath))
+	outputFile, err := os.Create(filepath.Join(pwd, constants.ColonyYamlPath))
 	if err != nil {
 		return fmt.Errorf("error creating output file: %w", err)
 	}
