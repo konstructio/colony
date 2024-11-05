@@ -22,18 +22,18 @@ func getDestroyCommand() *cobra.Command {
 			log.Info("creating docker client")
 			dockerCLI, err := docker.New(log)
 			if err != nil {
-				return fmt.Errorf("error creating docker client: %w ", err)
+				return fmt.Errorf("error creating docker client: %w", err)
 			}
 
 			err = dockerCLI.RemoveColonyK3sContainer(ctx)
 			if err != nil {
-				return fmt.Errorf("error: failed to remove colony container %w ", err)
+				return fmt.Errorf("error: failed to remove colony container %w", err)
 			}
 
 			if fileExists(constants.KubeconfigHostPath) {
 				err := os.Remove(constants.KubeconfigHostPath)
 				if err != nil {
-					return fmt.Errorf("error removing kubeconfig: %w ", err)
+					return fmt.Errorf("error removing kubeconfig: %w", err)
 				}
 				log.Info("kubeconfig deleted")
 			} else {

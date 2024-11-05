@@ -31,7 +31,7 @@ type ColonyTokens struct {
 func New(logger *logger.Logger) (*Client, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, fmt.Errorf("error creating docker client: %w ", err)
+		return nil, fmt.Errorf("error creating docker client: %w", err)
 	}
 
 	return &Client{
@@ -45,7 +45,7 @@ func getColonyK3sContainerIDAndName(ctx context.Context, c *Client) (string, str
 
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
-		return "", "", fmt.Errorf("error listing containers on host: %w ", err)
+		return "", "", fmt.Errorf("error listing containers on host: %w", err)
 	}
 
 	for _, container := range containers {
@@ -68,7 +68,7 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 
 	err = c.cli.ContainerRemove(ctx, colonyK3sContainerID, containerTypes.RemoveOptions{Force: true})
 	if err != nil {
-		return fmt.Errorf("error removing container: %w ", err)
+		return fmt.Errorf("error removing container: %w", err)
 	}
 	return nil
 }
@@ -82,7 +82,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 
 	err := download.FileFromURL(colonyTemplateURL, filename)
 	if err != nil {
-		return fmt.Errorf("error downloading file: %w ", err)
+		return fmt.Errorf("error downloading file: %w", err)
 	} else {
 		log.Info("downloaded colony.yaml successfully:", filename)
 	}
@@ -93,7 +93,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	})
 
 	if err != nil {
-		return fmt.Errorf("error hydrating template: %w ", err)
+		return fmt.Errorf("error hydrating template: %w", err)
 	}
 
 	defer c.cli.Close()
@@ -128,7 +128,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 
 	pwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("error getting current working directory: %w ", err)
+		return fmt.Errorf("error getting current working directory: %w", err)
 	}
 
 	mounts := []mount.Mount{
@@ -173,7 +173,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	}, nil, nil, constants.ColonyK3sContainerName)
 
 	if err != nil {
-		log.Error("Error creating container: %w ", err)
+		log.Error("Error creating container: %w", err)
 	}
 
 	log.Info("Created container with ID %s\n", resp.ID)
@@ -188,7 +188,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	log.Info("Checking for file %q every %d...\n", fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval)
 	err = waitForFile(log, fmt.Sprintf("./%s", constants.KubeconfigHostPath), waitInterval, timeout)
 	if err != nil {
-		return fmt.Errorf("error waiting for kubeconfig file: %w ", err)
+		return fmt.Errorf("error waiting for kubeconfig file: %w", err)
 	}
 
 	return nil

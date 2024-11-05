@@ -54,12 +54,12 @@ func getInitCommand() *cobra.Command {
 
 			dockerCLI, err := docker.New(log)
 			if err != nil {
-				return fmt.Errorf("error creating docker client: %w ", err)
+				return fmt.Errorf("error creating docker client: %w", err)
 			}
 
 			err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface)
 			if err != nil {
-				return fmt.Errorf("error creating container: %w ", err)
+				return fmt.Errorf("error creating container: %w", err)
 			}
 
 			// TODO hack, the kube api is not always ready need to figure out a better condition
@@ -67,7 +67,7 @@ func getInitCommand() *cobra.Command {
 
 			k8sClient, err := k8s.New(log, "./"+constants.KubeconfigHostPath)
 			if err != nil {
-				return fmt.Errorf("error creating Kubernetes client: %w ", err)
+				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
 			coreDNSDeployment, err := k8sClient.ReturnDeploymentObject(
@@ -78,7 +78,7 @@ func getInitCommand() *cobra.Command {
 				50,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding coredns deployment: %w ", err)
+				return fmt.Errorf("error finding coredns deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 300)
@@ -91,7 +91,7 @@ func getInitCommand() *cobra.Command {
 				50,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding metrics-server deployment: %w ", err)
+				return fmt.Errorf("error finding metrics-server deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 300)
@@ -104,7 +104,7 @@ func getInitCommand() *cobra.Command {
 				180,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding hegel deployment: %w ", err)
+				return fmt.Errorf("error finding hegel deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, hegelDeployment, 300)
@@ -117,7 +117,7 @@ func getInitCommand() *cobra.Command {
 				180,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding rufio deployment: %w ", err)
+				return fmt.Errorf("error finding rufio deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, rufioDeployment, 300)
@@ -130,7 +130,7 @@ func getInitCommand() *cobra.Command {
 				180,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding smee deployment: %w ", err)
+				return fmt.Errorf("error finding smee deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, smeeDeployment, 300)
@@ -143,7 +143,7 @@ func getInitCommand() *cobra.Command {
 				180,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding tink-server deployment: %w ", err)
+				return fmt.Errorf("error finding tink-server deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, tinkServerDeployment, 300)
@@ -156,7 +156,7 @@ func getInitCommand() *cobra.Command {
 				180,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding tink-controller deployment: %w ", err)
+				return fmt.Errorf("error finding tink-controller deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, tinkControllerDeployment, 300)
@@ -174,12 +174,12 @@ func getInitCommand() *cobra.Command {
 
 			// Create a secret in the cluster
 			if err := k8sClient.CreateSecret(ctx, apiKeySecret); err != nil {
-				return fmt.Errorf("error creating secret: %w ", err)
+				return fmt.Errorf("error creating secret: %w", err)
 			}
 
 			k8sconfig, err := ioutil.ReadFile(constants.KubeconfigHostPath)
 			if err != nil {
-				return fmt.Errorf("error reading file: %w ", err)
+				return fmt.Errorf("error reading file: %w", err)
 			}
 
 			mgmtKubeConfigSecret := &v1.Secret{
@@ -194,7 +194,7 @@ func getInitCommand() *cobra.Command {
 
 			// Create a secret in the cluster
 			if err := k8sClient.CreateSecret(ctx, mgmtKubeConfigSecret); err != nil {
-				return fmt.Errorf("error creating secret: %w ", err)
+				return fmt.Errorf("error creating secret: %w", err)
 			}
 
 			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
@@ -205,20 +205,20 @@ func getInitCommand() *cobra.Command {
 				180,
 			)
 			if err != nil {
-				return fmt.Errorf("error finding colony-agent deployment: %w ", err)
+				return fmt.Errorf("error finding colony-agent deployment: %w", err)
 			}
 
 			k8sClient.WaitForDeploymentReady(ctx, colonyAgentDeployment, 300)
 
 			k8sClient, err = k8s.New(log, "./"+constants.KubeconfigHostPath)
 			if err != nil {
-				return fmt.Errorf("error creating Kubernetes client: %w ", err)
+				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
 			log.Info("Applying tink templates")
 			// templates, err := colonyApi.GetSystemTemplates(ctx)
 			// if err != nil {
-			// 	return fmt.Errorf("error getting system templates: %w ", err)
+			// 	return fmt.Errorf("error getting system templates: %w", err)
 			// }
 
 			// var manifests []string
@@ -228,7 +228,7 @@ func getInitCommand() *cobra.Command {
 
 			err = createDirIfNotExist("./templates")
 			if err != nil {
-				return fmt.Errorf("error creating directory: %w ", err)
+				return fmt.Errorf("error creating directory: %w", err)
 			}
 
 			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
@@ -237,7 +237,7 @@ func getInitCommand() *cobra.Command {
 				filename := fmt.Sprintf("./templates/%s", template)
 				err := download.FileFromURL(url, filename)
 				if err != nil {
-					return fmt.Errorf("error downloading file: %w ", err)
+					return fmt.Errorf("error downloading file: %w", err)
 				} else {
 					log.Info("File downloaded successfully:", filename)
 				}
@@ -246,11 +246,11 @@ func getInitCommand() *cobra.Command {
 
 			manifests, err := readFilesInDir("./templates")
 			if err != nil {
-				return fmt.Errorf("Error: %w ", err)
+				return fmt.Errorf("Error: %w", err)
 			}
 
 			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
-				return fmt.Errorf("error applying templates: %w ", err)
+				return fmt.Errorf("error applying templates: %w", err)
 			}
 
 			return nil
