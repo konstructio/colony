@@ -140,8 +140,8 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		},
 		{
 			Type:   mount.TypeBind,
-			Source: filepath.Join(pwd, "/colony.yaml"),
-			Target: "/var/lib/rancher/k3s/server/manifests/colony.yaml",
+			Source: filepath.Join(pwd, constants.ColonyYamlPath),
+			Target: fmt.Sprintf("/var/lib/rancher/k3s/server/manifests/%s", constants.ColonyYamlPath),
 		},
 		{
 			Type:   mount.TypeTmpfs,
