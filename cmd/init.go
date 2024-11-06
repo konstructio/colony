@@ -10,10 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -277,8 +275,8 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
 			}
 
-			log.Info("Applying tink templates")
-			err = createDirIfNotExist(filepath.Join(pwd, "templates"))
+			log.Info("Applying iso download jobs")
+			err = createDirIfNotExist(filepath.Join(pwd, "downloads"))
 			if err != nil {
 				return fmt.Errorf("error creating directory: %w", err)
 			}
@@ -300,7 +298,7 @@ func getInitCommand() *cobra.Command {
 
 			downloadFiles, err := readFilesInDir(filepath.Join(pwd, "downloads"))
 			if err != nil {
-				return fmt.Errorf("error reading files directory: %w", err)
+				return fmt.Errorf("error reading files in downloads directory: %w", err)
 			}
 
 			if err := k8sClient.ApplyManifests(ctx, downloadFiles); err != nil {
@@ -320,33 +318,6 @@ func getInitCommand() *cobra.Command {
 }
 
 func init() {
-}
-
-func getTemplatesFromURL() {
-	url := "https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/templates.yaml"
-	filepath := "templates.yaml"
-
-	// Download the file
-	response, err := http.Get(url)
-	if err != nil {
-		panic(err)
-	}
-	defer response.Body.Close()
-
-	// Create a new file to save the downloaded content
-	outFile, err := os.Create(filepath)
-	if err != nil {
-		panic(err)
-	}
-	defer outFile.Close()
-
-	// Copy the response body to the file
-	_, err = io.Copy(outFile, response.Body)
-	if err != nil {
-		panic(err)
-	}
-
-	println("File downloaded successfully to", filepath)
 }
 
 func createDirIfNotExist(dir string) error {

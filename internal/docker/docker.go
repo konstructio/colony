@@ -114,7 +114,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	if err != nil {
 		return fmt.Errorf("error pulling image %q: %w ", imageName, err)
 	}
-	log.Info("Pulled image %s successfully\n", imageName)
+	log.Infof("Pulled image %q successfully", imageName)
 
 	defer reader.Close()
 	// c.cli.ImagePull is asynchronous.

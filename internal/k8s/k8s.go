@@ -110,7 +110,7 @@ func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, c
 	if err != nil {
 		return fmt.Errorf("error patching ClusterRole: %w", err)
 	}
-	c.logger.Info("Successfully patched ClusterRole %s\n", updatedRole.Name)
+	c.logger.Infof("successfully patched ClusterRole %s", updatedRole.Name)
 
 	return nil
 }
