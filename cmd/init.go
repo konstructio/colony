@@ -277,6 +277,36 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
 			}
 
+			log.Info("Applying tink templates")
+			err = createDirIfNotExist(filepath.Join(pwd, "templates"))
+			if err != nil {
+				return fmt.Errorf("error creating directory: %w", err)
+			}
+
+			downloadISOFiles := []string{"cm-download-talos.yaml", "cm-download-ubuntu-jammy.yaml", "job-download-talos.yaml", "job-download-talos.yaml"}
+			for _, file := range downloadISOFiles {
+				url := fmt.Sprintf("https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/yaml/%s", file)
+				filename := filepath.Join(pwd, "downloads/"+file)
+
+				fmt.Println(filename)
+				err := download.FileFromURL(url, filename)
+				if err != nil {
+					return fmt.Errorf("error downloading file: %w", err)
+				} else {
+					log.Info("downloaded:", filename)
+				}
+
+			}
+
+			downloadFiles, err := readFilesInDir(filepath.Join(pwd, "downloads"))
+			if err != nil {
+				return fmt.Errorf("error reading files directory: %w", err)
+			}
+
+			if err := k8sClient.ApplyManifests(ctx, downloadFiles); err != nil {
+				return fmt.Errorf("error applying download files: %w", err)
+			}
+
 			return nil
 		},
 	}
