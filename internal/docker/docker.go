@@ -123,15 +123,11 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		return fmt.Errorf("docker error: %w", err)
 	}
 
-	if err != nil {
-		return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
-	}
-
 	// Pull the rancher/k3s image if it’s not already available
 	imageName := "rancher/k3s:v1.30.2-k3s1"
 	reader, err := c.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
-		return fmt.Errorf("error pulling image %q: %w ", imageName, err)
+		return fmt.Errorf("error pulling image %q: %w", imageName, err)
 	}
 	log.Infof("Pulled image %q successfully", imageName)
 
