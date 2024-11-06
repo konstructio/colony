@@ -41,6 +41,8 @@ func getDestroyCommand() *cobra.Command {
 				return fmt.Errorf("error: failed to delete kubeconfig file %w", err)
 			}
 
+			//! templates directory is not removed
+
 			log.Info("colony installation removed from host")
 
 			return nil

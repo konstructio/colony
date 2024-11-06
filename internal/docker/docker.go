@@ -44,20 +44,19 @@ func New(logger *logger.Logger) (*Client, error) {
 	}, nil
 }
 
-// func getColonyK3sContainerIDAndName(ctx context.Context, c *Client) {
-func getColonyK3sContainer(ctx context.Context, c *Client) (types.Container, error) {
+func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, error) {
 
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
-		return types.Container{}, fmt.Errorf("error listing containers on host: %w", err)
+		return nil, fmt.Errorf("error listing containers on host: %w", err)
 	}
 
 	for _, container := range containers {
 		if container.Names[0] == "/"+constants.ColonyK3sContainerName {
-			return container, nil
+			return &container, nil
 		}
 	}
-	return types.Container{}, ErrK3sContainerNotFound
+	return nil, ErrK3sContainerNotFound
 }
 
 func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
@@ -116,9 +115,12 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	defer c.cli.Close()
 
 	// check for an existing colony-k3s container
-	_, err = getColonyK3sContainer(ctx, c)
-	if err == ErrK3sContainerNotFound {
+	k3sColonyContainer, err := getColonyK3sContainer(ctx, c)
+	if k3sColonyContainer != nil {
 		return fmt.Errorf("%q container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
+	}
+	if err != nil && err != ErrK3sContainerNotFound {
+		return fmt.Errorf("docker error: %w", err)
 	}
 
 	if err != nil {
@@ -189,7 +191,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		log.Error("Error creating container: %w", err)
 	}
 
-	log.Info("Created container with ID %s\n", resp.ID)
+	log.Infof("created container with ID %q", resp.ID)
 
 	if err := c.cli.ContainerStart(ctx, resp.ID, containerTypes.StartOptions{}); err != nil {
 		panic(err)
