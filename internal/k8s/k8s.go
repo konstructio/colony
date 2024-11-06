@@ -10,6 +10,7 @@ import (
 
 	"github.com/konstructio/colony/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -123,6 +124,30 @@ func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
 	}
 
 	c.logger.Debugf("created Secret %q in Namespace %q\n", s.Name, s.Namespace)
+
+	return nil
+}
+
+func (c *Client) CreateConfigMap(ctx context.Context, configMap *v1.ConfigMap) error {
+
+	_, err := c.clientSet.CoreV1().ConfigMaps(configMap.GetNamespace()).Create(ctx, configMap, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("error creating ConfigMap: %w", err)
+	}
+
+	c.logger.Infof("ConfigMap %s created successfully in namespace %s", configMap.Name, configMap.Namespace)
+
+	return nil
+}
+
+func (c *Client) CreateJob(ctx context.Context, job *batchv1.Job) error {
+
+	job, err := c.clientSet.BatchV1().Jobs(job.GetNamespace()).Create(ctx, job, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("error creating Job: %w", err)
+	}
+
+	c.logger.Infof("job %s created successfully", job.Name)
 
 	return nil
 }
