@@ -17,7 +17,6 @@ import (
 
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
-	"github.com/konstructio/colony/internal/docker"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
@@ -53,20 +52,20 @@ func getInitCommand() *cobra.Command {
 
 			log.Info("colony api key provided is valid")
 
-			dockerCLI, err := docker.New(log)
-			if err != nil {
-				return fmt.Errorf("error creating docker client: %w", err)
-			}
+			// dockerCLI, err := docker.New(log)
+			// if err != nil {
+			// 	return fmt.Errorf("error creating docker client: %w", err)
+			// }
 
 			pwd, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("error getting current working directory: %w", err)
 			}
 
-			err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface, pwd)
-			if err != nil {
-				return fmt.Errorf("error creating container: %w", err)
-			}
+			// err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface, pwd)
+			// if err != nil {
+			// 	return fmt.Errorf("error creating container: %w", err)
+			// }
 
 			// TODO hack, the kube api is not always ready need to figure out a better condition
 			time.Sleep(time.Second * 7)
