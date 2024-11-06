@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types"
 	containerTypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
@@ -18,6 +19,8 @@ import (
 	"github.com/konstructio/colony/internal/download"
 	"github.com/konstructio/colony/internal/logger"
 )
+
+var ErrK3sContainerNotFound = fmt.Errorf("colony k3s container not found")
 
 type Client struct {
 	cli *client.Client
@@ -42,35 +45,48 @@ func New(logger *logger.Logger) (*Client, error) {
 }
 
 // func getColonyK3sContainerIDAndName(ctx context.Context, c *Client) {
-func getColonyK3sContainerIDAndName(ctx context.Context, c *Client) (string, string, error) {
+func getColonyK3sContainer(ctx context.Context, c *Client) (types.Container, error) {
 
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
-		return "", "", fmt.Errorf("error listing containers on host: %w", err)
+		return types.Container{}, fmt.Errorf("error listing containers on host: %w", err)
 	}
 
 	for _, container := range containers {
 		if container.Names[0] == "/"+constants.ColonyK3sContainerName {
-			return container.ID, container.Names[0], nil
+			return container, nil
 		}
 	}
-	return "", "", fmt.Errorf("container %q not found", constants.ColonyK3sContainerName)
+	return types.Container{}, ErrK3sContainerNotFound
 }
 
 func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 
 	defer c.cli.Close()
 
-	colonyK3sContainerID, colonyK3sContainerName, err := getColonyK3sContainerIDAndName(ctx, c)
+	k3scontainer, err := getColonyK3sContainer(ctx, c)
 	if err != nil {
 		return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
 	}
-	c.log.Info(fmt.Sprintf("found container name %q with ID %q  ", strings.TrimPrefix(colonyK3sContainerName, "/"), colonyK3sContainerID[:constants.DefaultDockerIDLength]))
+	c.log.Info(fmt.Sprintf("found container name %q with ID %q  ", strings.TrimPrefix(k3scontainer.Names[0], "/"), k3scontainer.ID[:constants.DefaultDockerIDLength]))
 
-	err = c.cli.ContainerRemove(ctx, colonyK3sContainerID, containerTypes.RemoveOptions{Force: true})
+	err = c.cli.ContainerStop(ctx, k3scontainer.ID, containerTypes.StopOptions{})
+	if err != nil {
+		return fmt.Errorf("error stopping container: %w", err)
+	}
+	err = c.cli.ContainerRemove(ctx, k3scontainer.ID, containerTypes.RemoveOptions{Force: true})
 	if err != nil {
 		return fmt.Errorf("error removing container: %w", err)
 	}
+
+	for _, mount := range k3scontainer.Mounts {
+		if mount.Type == "volume" {
+			if err := c.cli.VolumeRemove(ctx, mount.Name, false); err != nil {
+				fmt.Printf("unable to delete volume %s", err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -100,12 +116,13 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	defer c.cli.Close()
 
 	// check for an existing colony-k3s container
-	colonyK3sContainerID, _, err := getColonyK3sContainerIDAndName(ctx, c)
-	// if err != nil {
-	// 	return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
-	// }
-	if colonyK3sContainerID != "" {
+	_, err = getColonyK3sContainer(ctx, c)
+	if err == ErrK3sContainerNotFound {
 		return fmt.Errorf("%q container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
+	}
+
+	if err != nil {
+		return fmt.Errorf("error getting %q container: %w ", constants.ColonyK3sContainerName, err)
 	}
 
 	// Pull the rancher/k3s image if it’s not already available
