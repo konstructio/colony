@@ -102,7 +102,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, clusterRolePatchBytes []byte) error {
 
 	updatedRole, err := c.clientSet.RbacV1().ClusterRoles().Patch(
-		context.TODO(),
+		ctx, 
 		clusterRoleName,
 		types.JSONPatchType,
 		clusterRolePatchBytes,
