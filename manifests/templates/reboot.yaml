@@ -1,0 +1,24 @@
+apiVersion: "tinkerbell.org/v1alpha1"
+kind: Template
+metadata:
+  name: reboot
+  namespace: tink-system
+spec:
+  data: |
+    version: "0.1"
+    name: discovery_spec
+    global_timeout: 1800
+    tasks:
+      - name: "reboot-task"
+        worker: "{{.device_1}}"
+        actions:
+          - name: "reboot-machine"
+            image: ghcr.io/jacobweinstock/waitdaemon:latest
+            timeout: 90
+            pid: host
+            command: ["reboot"]
+            environment:
+              IMAGE: alpine
+              WAIT_SECONDS: 10
+            volumes:
+              - /var/run/docker.sock:/var/run/docker.sock
