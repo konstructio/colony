@@ -212,7 +212,7 @@ func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.
 	}
 	desiredReplicas := *deployment.Spec.Replicas
 
-	log.Info(fmt.Sprintf("waiting for deployment %q in namespace %q to be ready - this could take up to %d seconds", deploymentName, namespace, timeoutSeconds))
+	log.Infof("waiting for deployment %q in namespace %q to be ready - this could take up to %d seconds", deploymentName, namespace, timeoutSeconds)
 
 	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
 		// Get the latest Deployment object
@@ -228,7 +228,7 @@ func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.
 		}
 
 		if currentDeployment.Status.ReadyReplicas == desiredReplicas {
-			log.Info(fmt.Sprintf("all pods in deployment %q are ready", deploymentName))
+			log.Infof("all pods in deployment %q are ready", deploymentName)
 			return true, nil
 		}
 

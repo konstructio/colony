@@ -67,7 +67,7 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error getting %q container: %w", constants.ColonyK3sContainerName, err)
 	}
-	c.log.Info(fmt.Sprintf("found container name %q with ID %q", strings.TrimPrefix(k3scontainer.Names[0], "/"), k3scontainer.ID[:constants.DefaultDockerIDLength]))
+	c.log.Infof("found container name %q with ID %q", strings.TrimPrefix(k3scontainer.Names[0], "/"), k3scontainer.ID[:constants.DefaultDockerIDLength])
 
 	err = c.cli.ContainerStop(ctx, k3scontainer.ID, containerTypes.StopOptions{})
 	if err != nil {
