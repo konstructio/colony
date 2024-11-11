@@ -102,7 +102,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, clusterRolePatchBytes []byte) error {
 
 	updatedRole, err := c.clientSet.RbacV1().ClusterRoles().Patch(
-		ctx, 
+		ctx,
 		clusterRoleName,
 		types.JSONPatchType,
 		clusterRolePatchBytes,
@@ -189,7 +189,7 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 				})
 
 				if retryErr != nil {
-					return fmt.Errorf("error updating resource: %w ", retryErr)
+					return fmt.Errorf("error updating resource: %w", retryErr)
 				}
 			}
 
@@ -236,7 +236,7 @@ func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.
 		return false, nil
 	})
 	if err != nil {
-		return false, fmt.Errorf("the Deployment %q in Namespace %q was not ready within the timeout period: %w ", deploymentName, namespace, err)
+		return false, fmt.Errorf("the Deployment %q in Namespace %q was not ready within the timeout period: %w", deploymentName, namespace, err)
 	}
 
 	return true, nil

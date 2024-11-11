@@ -26,6 +26,7 @@ go.work.sum
 tmp/
 dist/
 .vscode
-templates
+./templates
 colony.yaml
 colony.yaml.tmpl
+vendor/
