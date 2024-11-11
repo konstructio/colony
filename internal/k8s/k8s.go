@@ -220,7 +220,7 @@ func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.
 		if err != nil {
 			// If we couldn't connect, retry
 			if isNetworkingError(err) {
-				log.Warn("connection error, retrying: %w", err)
+				log.Warn("connection error, retrying: %s", err)
 				return false, nil
 			}
 

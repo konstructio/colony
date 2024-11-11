@@ -52,7 +52,7 @@ func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, er
 	}
 
 	for _, container := range containers {
-		if container.Names[0] == "/"+constants.ColonyK3sContainerName {
+		if len(container.Names) > 0 && container.Names[0] == "/"+constants.ColonyK3sContainerName {
 			return &container, nil
 		}
 	}
