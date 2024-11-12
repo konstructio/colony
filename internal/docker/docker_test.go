@@ -39,6 +39,6 @@ func Test_waitUntilFileExists(t *testing.T) {
 	// Call waitForFile2 with an interval of 50 ms and a timeout of 1 second
 	err = waitUntilFileExists(log, filename, 50*time.Millisecond, 1*time.Second)
 	if err != nil {
-		t.Fatalf("waitForFile2() error = %v", err)
+		t.Fatalf("waitUntilFileExists() error = %v", err)
 	}
 }

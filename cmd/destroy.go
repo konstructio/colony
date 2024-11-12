@@ -17,7 +17,7 @@ func getDestroyCommand() *cobra.Command {
 		Use:   "destroy",
 		Short: "remove colony deployment from your host",
 		Long:  `remove colony deployment from your host`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			log := logger.New(logger.Debug)
 

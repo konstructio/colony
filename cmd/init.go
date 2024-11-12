@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,6 +11,7 @@ import (
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
 	"github.com/konstructio/colony/internal/download"
+	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
@@ -28,7 +27,7 @@ func getInitCommand() *cobra.Command {
 		Use:   "init",
 		Short: "initialize colony on your host to provision in your data center",
 		Long:  `initialize colony on your host to provision in your data center`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			log := logger.New(logger.Debug)
 			ctx := cmd.Context()
 
@@ -37,8 +36,8 @@ func getInitCommand() *cobra.Command {
 				apiKey = os.Getenv("COLONY_API_KEY")
 			}
 
-			colonyApi := colony.New(apiURL, apiKey)
-			if err := colonyApi.ValidateAPIKey(ctx); err != nil {
+			colonyAPI := colony.New(apiURL, apiKey)
+			if err := colonyAPI.ValidateAPIKey(ctx); err != nil {
 				return fmt.Errorf("error validating colony api key: %q %w \n visit https://colony.konstruct.io to get a valid api key", apiKey, err)
 			}
 
@@ -111,7 +110,7 @@ func getInitCommand() *cobra.Command {
 					Namespace: "tink-system",
 				},
 				Data: map[string][]byte{
-					"kubeconfig": []byte(k8sconfig),
+					"kubeconfig": k8sconfig,
 				},
 			}
 
@@ -238,7 +237,7 @@ func getInitCommand() *cobra.Command {
 			}
 
 			log.Info("Applying tink templates")
-			err = createDirIfNotExist(filepath.Join(pwd, "templates"))
+			err = exec.CreateDirIfNotExist(filepath.Join(pwd, "templates"))
 			if err != nil {
 				return fmt.Errorf("error creating directory: %w", err)
 			}
@@ -246,19 +245,18 @@ func getInitCommand() *cobra.Command {
 			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
 			for _, template := range templates {
 				url := fmt.Sprintf("https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/%s", template)
-				filename := filepath.Join(pwd, "templates/"+template)
+				filename := filepath.Join(pwd, "templates", template)
 
-				fmt.Println(filename)
+				log.Infof("downloading template from %q into %q", url, filename)
 				err := download.FileFromURL(url, filename)
 				if err != nil {
 					return fmt.Errorf("error downloading file: %w", err)
-				} else {
-					log.Info("downloaded:", filename)
 				}
 
+				log.Info("downloaded:", filename)
 			}
 
-			manifests, err := readFilesInDir(filepath.Join(pwd, "templates"))
+			manifests, err := exec.ReadFilesInDir(filepath.Join(pwd, "templates"))
 			if err != nil {
 				return fmt.Errorf("error reading files directory: %w", err)
 			}
@@ -269,17 +267,15 @@ func getInitCommand() *cobra.Command {
 
 			clusterRoleName := "smee-role"
 
-			patch := []map[string]interface{}{
-				{
-					"op":   "add",
-					"path": "/rules/-",
-					"value": rbacv1.PolicyRule{
-						APIGroups: []string{"tinkerbell.org"},
-						Resources: []string{"hardware", "hardware/status"},
-						Verbs:     []string{"create", "update"},
-					},
+			patch := []map[string]interface{}{{
+				"op":   "add",
+				"path": "/rules/-",
+				"value": rbacv1.PolicyRule{
+					APIGroups: []string{"tinkerbell.org"},
+					Resources: []string{"hardware", "hardware/status"},
+					Verbs:     []string{"create", "update"},
 				},
-			}
+			}}
 
 			// Convert patch to JSON
 			patchBytes, err := json.Marshal(patch)
@@ -296,46 +292,14 @@ func getInitCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&apiKey, "apiKey", "", "api key for interacting with colony cloud (required)")
-	cmd.Flags().StringVar(&apiURL, "apiURL", "https://colony-api-virtual.konstruct.io", "api url for interacting with colony cloud (required)")
-	cmd.Flags().StringVar(&loadBalancerInterface, "loadBalancerInterface", "eth0", "the local network interface for colony to use (required)")
-	cmd.Flags().StringVar(&loadBalancerIP, "loadBalancerIP", "192.168.0.192", "the local network interface for colony to use (required)")
+	cmd.Flags().StringVar(&apiKey, "apiKey", "", "api key for interacting with colony cloud")
+	cmd.Flags().StringVar(&apiURL, "apiURL", "https://colony-api-virtual.konstruct.io", "api url for interacting with colony cloud")
+	cmd.Flags().StringVar(&loadBalancerInterface, "loadBalancerInterface", "eth0", "the local network interface for colony to use")
+	cmd.Flags().StringVar(&loadBalancerIP, "loadBalancerIP", "192.168.0.192", "the local network interface for colony to use")
 
+	cmd.MarkFlagRequired("apiKey")
+	cmd.MarkFlagRequired("apiURL")
+	cmd.MarkFlagRequired("loadBalancerInterface")
+	cmd.MarkFlagRequired("loadBalancerIP")
 	return cmd
-}
-
-func init() {
-}
-
-func createDirIfNotExist(dir string) error {
-	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
-		err = os.Mkdir(dir, 0o777)
-		if err != nil {
-			return fmt.Errorf("unable to create directory %q: %w", dir, err)
-		}
-	}
-	return nil
-}
-
-func readFilesInDir(dir string) ([]string, error) {
-	var templateFiles []string
-	// Open the directory
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open directory: %v", err)
-	}
-
-	// Loop through each file in the directory
-	for _, file := range files {
-		if file.Type().IsRegular() { // Check if it's a regular file
-			filePath := filepath.Join(dir, file.Name())
-			content, err := os.ReadFile(filePath) // Read file content
-			if err != nil {
-				return nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
-			}
-			templateFiles = append(templateFiles, string(content))
-		}
-	}
-
-	return templateFiles, nil
 }

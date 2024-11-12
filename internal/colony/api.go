@@ -34,7 +34,7 @@ func New(baseURL, token string) *API {
 				MaxIdleConns:        100,
 				MaxConnsPerHost:     100,
 				MaxIdleConnsPerHost: 100,
-				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
 			},
 		},
 	}
