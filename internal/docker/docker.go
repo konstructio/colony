@@ -49,7 +49,7 @@ func (c *Client) Close() error {
 	return c.cli.Close() //nolint:wrapcheck // exposing the close to upstream callers
 }
 
-func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, error) {
+func (c *Client) getColonyK3sContainer(ctx context.Context) (*types.Container, error) {
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers on host: %w", err)
@@ -64,7 +64,7 @@ func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, er
 }
 
 func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
-	k3scontainer, err := getColonyK3sContainer(ctx, c)
+	k3scontainer, err := c.getColonyK3sContainer(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting %q container: %w", constants.ColonyK3sContainerName, err)
 	}
@@ -115,7 +115,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	}
 
 	// check for an existing colony-k3s container
-	k3sColonyContainer, err := getColonyK3sContainer(ctx, c)
+	k3sColonyContainer, err := c.getColonyK3sContainer(ctx)
 	if k3sColonyContainer != nil {
 		return fmt.Errorf("%q container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
 	}
