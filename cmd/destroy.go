@@ -25,6 +25,7 @@ func getDestroyCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error creating docker client: %w", err)
 			}
+			defer dockerCLI.Close()
 
 			pwd, err := os.Getwd()
 			if err != nil {
