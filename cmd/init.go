@@ -85,7 +85,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding coredns deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for coredns deployment: %w", err)
+			}
 
 			// Create the secret
 			apiKeySecret := &v1.Secret{
@@ -134,7 +137,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding metrics-server deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for metrics server deployment: %w", err)
+			}
 
 			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
 				ctx,
@@ -147,7 +153,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding colony-agent deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, colonyAgentDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, colonyAgentDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for colony agent deployment: %w", err)
+			}
 
 			hegelDeployment, err := k8sClient.ReturnDeploymentObject(
 				ctx,
@@ -160,7 +169,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding hegel deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, hegelDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, hegelDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for hegel deployment: %w", err)
+			}
 
 			rufioDeployment, err := k8sClient.ReturnDeploymentObject(
 				ctx,
@@ -173,7 +185,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding rufio deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, rufioDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, rufioDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for rufio deployment: %w", err)
+			}
 
 			smeeDeployment, err := k8sClient.ReturnDeploymentObject(
 				ctx,
@@ -186,7 +201,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding smee deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, smeeDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, smeeDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for smee deployment: %w", err)
+			}
 
 			tinkServerDeployment, err := k8sClient.ReturnDeploymentObject(
 				ctx,
@@ -199,7 +217,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding tink-server deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, tinkServerDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, tinkServerDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for tink server deployment: %w", err)
+			}
 
 			tinkControllerDeployment, err := k8sClient.ReturnDeploymentObject(
 				ctx,
@@ -212,7 +233,10 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error finding tink-controller deployment: %w", err)
 			}
 
-			k8sClient.WaitForDeploymentReady(ctx, tinkControllerDeployment, 120)
+			_, err = k8sClient.WaitForDeploymentReady(ctx, tinkControllerDeployment, 120)
+			if err != nil {
+				return fmt.Errorf("error waiting for tink controller deployment: %w", err)
+			}
 
 			k8sClient, err = k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
 			if err != nil {

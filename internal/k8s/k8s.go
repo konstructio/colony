@@ -202,7 +202,6 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 
 // WaitForDeploymentReady waits for a target Deployment to become ready
 func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
-	log := logger.New(logger.Debug)
 	deploymentName := deployment.Name
 	namespace := deployment.Namespace
 
@@ -212,7 +211,7 @@ func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.
 	}
 	desiredReplicas := *deployment.Spec.Replicas
 
-	log.Infof("waiting for deployment %q in namespace %q to be ready - this could take up to %d seconds", deploymentName, namespace, timeoutSeconds)
+	c.logger.Infof("waiting for deployment %q in namespace %q to be ready - this could take up to %d seconds", deploymentName, namespace, timeoutSeconds)
 
 	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
 		// Get the latest Deployment object
@@ -220,7 +219,7 @@ func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.
 		if err != nil {
 			// If we couldn't connect, retry
 			if isNetworkingError(err) {
-				log.Warn("connection error, retrying: %s", err)
+				c.logger.Warn("connection error, retrying: %s", err)
 				return false, nil
 			}
 
@@ -228,7 +227,7 @@ func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.
 		}
 
 		if currentDeployment.Status.ReadyReplicas == desiredReplicas {
-			log.Infof("all pods in deployment %q are ready", deploymentName)
+			c.logger.Infof("all pods in deployment %q are ready", deploymentName)
 			return true, nil
 		}
 
