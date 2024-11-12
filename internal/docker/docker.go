@@ -45,7 +45,6 @@ func New(logger *logger.Logger) (*Client, error) {
 }
 
 func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, error) {
-
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers on host: %w", err)
@@ -60,7 +59,6 @@ func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, er
 }
 
 func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
-
 	defer c.cli.Close()
 
 	k3scontainer, err := getColonyK3sContainer(ctx, c)
@@ -107,7 +105,6 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		LoadBalancerIP:        loadBalancerIP,
 		LoadBalancerInterface: loadBalancerInterface,
 	})
-
 	if err != nil {
 		return fmt.Errorf("error hydrating template: %w", err)
 	}
@@ -182,7 +179,6 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		NetworkMode: "host",
 		Mounts:      mounts,
 	}, nil, nil, constants.ColonyK3sContainerName)
-
 	if err != nil {
 		log.Error("Error creating container: %w", err)
 	}
@@ -197,38 +193,42 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	timeout := 15 * time.Second
 
 	log.Infof("Checking for file %s every %d...\n", filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval)
-	err = waitForFile(log, filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval, timeout)
+	err = waitUntilFileExists(log, filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval, timeout)
 	if err != nil {
 		return fmt.Errorf("error waiting for kubeconfig file: %w", err)
 	}
 
 	return nil
-
 }
 
-func waitForFile(log *logger.Logger, filename string, interval, timeout time.Duration) error {
-	timeoutCh := time.After(timeout)
+func waitUntilFileExists(log *logger.Logger, filename string, interval, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-timeoutCh:
+		case <-ctx.Done():
 			return fmt.Errorf("timeout reached while waiting for file %s", filename)
-		default:
-			if _, err := os.Stat(filename); err == nil {
-				log.Infof("%s created file\n", filename)
-				return nil
-			} else if os.IsNotExist(err) {
-				log.Infof("waiting for file %s...\n", filename)
-				time.Sleep(interval) // Wait before checking again
-			} else {
+		case <-ticker.C:
+			if _, err := os.Stat(filename); err != nil {
+				if os.IsNotExist(err) {
+					log.Infof("waiting for file %q...", filename)
+					continue
+				}
+
 				return fmt.Errorf("error checking file: %w", err)
 			}
+
+			log.Infof("created file %q", filename)
+			return nil
 		}
 	}
 }
 
 func hydrateTemplate(pwd string, colonyTokens ColonyTokens) error {
-
 	tmpl, err := template.ParseFiles(filepath.Join(pwd, fmt.Sprintf("%s.tmpl", constants.ColonyYamlPath)))
 	if err != nil {
 		return fmt.Errorf("error parsing template: %w", err)
