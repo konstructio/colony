@@ -3,6 +3,7 @@ package exec
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -31,4 +32,11 @@ func ExecuteCommand(logger *logger.Logger, command string, args ...string) (stri
 	logger.Debugf("Command output: %s", output)
 
 	return output, nil
+}
+
+func DeleteFile(location string) error {
+	if err := os.Remove(location); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("file %q couldn't be deleted: %w", location, err)
+	}
+	return nil
 }
