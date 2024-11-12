@@ -22,6 +22,7 @@ func DeleteFile(location string) error {
 }
 
 func ReadFilesInDir(dir string) ([]string, error) {
+	//nolint:prealloc // We don't know the number of files in the directory
 	var templateFiles []string
 
 	// Open the directory

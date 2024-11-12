@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -20,7 +21,7 @@ import (
 	"github.com/konstructio/colony/internal/logger"
 )
 
-var ErrK3sContainerNotFound = fmt.Errorf("colony k3s container not found")
+var ErrK3sContainerNotFound = errors.New("colony k3s container not found")
 
 type Client struct {
 	cli *client.Client
@@ -45,7 +46,7 @@ func New(logger *logger.Logger) (*Client, error) {
 }
 
 func (c *Client) Close() error {
-	return c.cli.Close()
+	return c.cli.Close() //nolint:wrapcheck // exposing the close to upstream callers
 }
 
 func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, error) {
@@ -119,7 +120,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		return fmt.Errorf("%q container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
 	}
 
-	if err != nil && err != ErrK3sContainerNotFound {
+	if err != nil && !errors.Is(err, ErrK3sContainerNotFound) {
 		return fmt.Errorf("docker error: %w", err)
 	}
 

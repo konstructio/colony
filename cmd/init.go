@@ -27,7 +27,7 @@ func getInitCommand() *cobra.Command {
 		Use:   "init",
 		Short: "initialize colony on your host to provision in your data center",
 		Long:  `initialize colony on your host to provision in your data center`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			log := logger.New(logger.Debug)
 			ctx := cmd.Context()
 
@@ -36,8 +36,8 @@ func getInitCommand() *cobra.Command {
 				apiKey = os.Getenv("COLONY_API_KEY")
 			}
 
-			colonyApi := colony.New(apiURL, apiKey)
-			if err := colonyApi.ValidateAPIKey(ctx); err != nil {
+			colonyAPI := colony.New(apiURL, apiKey)
+			if err := colonyAPI.ValidateAPIKey(ctx); err != nil {
 				return fmt.Errorf("error validating colony api key: %q %w \n visit https://colony.konstruct.io to get a valid api key", apiKey, err)
 			}
 
@@ -110,7 +110,7 @@ func getInitCommand() *cobra.Command {
 					Namespace: "tink-system",
 				},
 				Data: map[string][]byte{
-					"kubeconfig": []byte(k8sconfig),
+					"kubeconfig": k8sconfig,
 				},
 			}
 

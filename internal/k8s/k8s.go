@@ -100,7 +100,6 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 }
 
 func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, clusterRolePatchBytes []byte) error {
-
 	updatedRole, err := c.clientSet.RbacV1().ClusterRoles().Patch(
 		ctx,
 		clusterRoleName,
@@ -117,7 +116,6 @@ func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, c
 }
 
 func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
-
 	s, err := c.clientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating secret: %w", err)
@@ -129,7 +127,6 @@ func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
 }
 
 func (c *Client) CreateConfigMap(ctx context.Context, configMap *v1.ConfigMap) error {
-
 	_, err := c.clientSet.CoreV1().ConfigMaps(configMap.GetNamespace()).Create(ctx, configMap, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating ConfigMap: %w", err)
@@ -141,7 +138,6 @@ func (c *Client) CreateConfigMap(ctx context.Context, configMap *v1.ConfigMap) e
 }
 
 func (c *Client) CreateJob(ctx context.Context, job *batchv1.Job) error {
-
 	job, err := c.clientSet.BatchV1().Jobs(job.GetNamespace()).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating Job: %w", err)
@@ -181,11 +177,16 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 				retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					existingObj, getErr := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Get(ctx, obj.GetName(), metav1.GetOptions{})
 					if getErr != nil {
-						return getErr
+						return fmt.Errorf("error getting existing resource: %w", getErr)
 					}
+
 					obj.SetResourceVersion(existingObj.GetResourceVersion())
 					_, err := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Update(ctx, &obj, metav1.UpdateOptions{})
-					return err
+					if err != nil {
+						return fmt.Errorf("error updating resource: %w", err)
+					}
+
+					return nil
 				})
 
 				if retryErr != nil {
@@ -268,7 +269,6 @@ func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, 
 	var deployment *appsv1.Deployment
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
-
 		deployments, err := c.clientSet.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("%s=%s", matchLabel, matchLabelValue),
 		})
