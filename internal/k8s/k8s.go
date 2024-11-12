@@ -94,7 +94,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	c.logger.Debugf("created Secret %q in Namespace %q\n", s.Name, s.Namespace)
+	c.logger.Debugf("created Secret %q in Namespace %q", s.Name, s.Namespace)
 
 	return nil
 }
@@ -123,7 +123,7 @@ func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	c.logger.Debugf("created Secret %q in Namespace %q\n", s.Name, s.Namespace)
+	c.logger.Debugf("created Secret %q in Namespace %q", s.Name, s.Namespace)
 
 	return nil
 }
