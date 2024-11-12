@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -100,7 +99,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
 
-			k8sconfig, err := ioutil.ReadFile(constants.KubeconfigHostPath)
+			k8sconfig, err := os.ReadFile(constants.KubeconfigHostPath)
 			if err != nil {
 				return fmt.Errorf("error reading file: %w", err)
 			}
@@ -321,16 +320,16 @@ func readFilesInDir(dir string) ([]string, error) {
 
 	var templateFiles []string
 	// Open the directory
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open directory: %v", err)
 	}
 
 	// Loop through each file in the directory
 	for _, file := range files {
-		if file.Mode().IsRegular() { // Check if it's a regular file
+		if file.Type().IsRegular() { // Check if it's a regular file
 			filePath := filepath.Join(dir, file.Name())
-			content, err := ioutil.ReadFile(filePath) // Read file content
+			content, err := os.ReadFile(filePath) // Read file content
 			if err != nil {
 				return nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
 			}
