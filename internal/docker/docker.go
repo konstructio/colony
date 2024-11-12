@@ -44,6 +44,10 @@ func New(logger *logger.Logger) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) Close() error {
+	return c.cli.Close()
+}
+
 func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, error) {
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
@@ -59,18 +63,18 @@ func getColonyK3sContainer(ctx context.Context, c *Client) (*types.Container, er
 }
 
 func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
-	defer c.cli.Close()
-
 	k3scontainer, err := getColonyK3sContainer(ctx, c)
 	if err != nil {
 		return fmt.Errorf("error getting %q container: %w", constants.ColonyK3sContainerName, err)
 	}
+
 	c.log.Infof("found container name %q with ID %q", strings.TrimPrefix(k3scontainer.Names[0], "/"), k3scontainer.ID[:constants.DefaultDockerIDLength])
 
 	err = c.cli.ContainerStop(ctx, k3scontainer.ID, containerTypes.StopOptions{})
 	if err != nil {
 		return fmt.Errorf("error stopping container: %w", err)
 	}
+
 	err = c.cli.ContainerRemove(ctx, k3scontainer.ID, containerTypes.RemoveOptions{Force: true})
 	if err != nil {
 		return fmt.Errorf("error removing container: %w", err)
@@ -79,7 +83,7 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 	for _, mount := range k3scontainer.Mounts {
 		if mount.Type == "volume" {
 			if err := c.cli.VolumeRemove(ctx, mount.Name, false); err != nil {
-				fmt.Printf("unable to delete volume %s", err)
+				c.log.Warnf("error removing volume %q: %v, continuing...", mount.Name, err)
 			}
 		}
 	}
@@ -97,9 +101,9 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	err := download.FileFromURL(colonyTemplateURL, colonyTemplateYaml)
 	if err != nil {
 		return fmt.Errorf("error downloading file: %w", err)
-	} else {
-		log.Info("downloaded colony.yaml successfully:", colonyTemplateYaml)
 	}
+
+	log.Infof("downloaded colony.yaml successfully to %q", colonyTemplateYaml)
 
 	err = hydrateTemplate(pwd, ColonyTokens{
 		LoadBalancerIP:        loadBalancerIP,
@@ -109,26 +113,26 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		return fmt.Errorf("error hydrating template: %w", err)
 	}
 
-	defer c.cli.Close()
-
 	// check for an existing colony-k3s container
 	k3sColonyContainer, err := getColonyK3sContainer(ctx, c)
 	if k3sColonyContainer != nil {
 		return fmt.Errorf("%q container already exists. please remove before continuing or run `colony destroy`", constants.ColonyK3sContainerName)
 	}
+
 	if err != nil && err != ErrK3sContainerNotFound {
 		return fmt.Errorf("docker error: %w", err)
 	}
 
-	// Pull the rancher/k3s image if it’s not already available
+	// Pull the rancher/k3s image if it's not already available
 	imageName := "rancher/k3s:v1.30.2-k3s1"
 	reader, err := c.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
 		return fmt.Errorf("error pulling image %q: %w", imageName, err)
 	}
-	log.Infof("Pulled image %q successfully", imageName)
-
 	defer reader.Close()
+
+	log.Infof("pulled image %q successfully", imageName)
+
 	// c.cli.ImagePull is asynchronous.
 	// The reader needs to be read completely for the pull operation to complete.
 	// If stdout is not required, consider using io.Discard instead of os.Stdout.
@@ -180,19 +184,20 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 		Mounts:      mounts,
 	}, nil, nil, constants.ColonyK3sContainerName)
 	if err != nil {
-		log.Error("Error creating container: %w", err)
+		return fmt.Errorf("error creating container: %w", err)
 	}
 
 	log.Infof("created container with ID %q", resp.ID)
 
 	if err := c.cli.ContainerStart(ctx, resp.ID, containerTypes.StartOptions{}); err != nil {
-		panic(err)
+		return fmt.Errorf("error starting container: %w", err)
 	}
 
 	waitInterval := 2 * time.Second
 	timeout := 15 * time.Second
 
-	log.Infof("Checking for file %s every %d...\n", filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval)
+	log.Infof("Checking for file %s every %d...", filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval)
+
 	err = waitUntilFileExists(log, filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval, timeout)
 	if err != nil {
 		return fmt.Errorf("error waiting for kubeconfig file: %w", err)
@@ -222,7 +227,7 @@ func waitUntilFileExists(log *logger.Logger, filename string, interval, timeout 
 				return fmt.Errorf("error checking file: %w", err)
 			}
 
-			log.Infof("created file %q", filename)
+			log.Infof("found and stat'd file %q", filename)
 			return nil
 		}
 	}

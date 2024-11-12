@@ -48,6 +48,7 @@ func getInitCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error creating docker client: %w", err)
 			}
+			defer dockerCLI.Close()
 
 			pwd, err := os.Getwd()
 			if err != nil {
@@ -317,7 +318,6 @@ func createDirIfNotExist(dir string) error {
 }
 
 func readFilesInDir(dir string) ([]string, error) {
-
 	var templateFiles []string
 	// Open the directory
 	files, err := os.ReadDir(dir)
