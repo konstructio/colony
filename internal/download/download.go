@@ -26,7 +26,9 @@ func FileFromURL(url, filename string) error {
 	}
 
 	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return fmt.Errorf(("error copying file: %w"), err)
+	}
 
-	// Copy returns err == nil..
 	return err
 }
