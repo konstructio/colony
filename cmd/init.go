@@ -1,12 +1,6 @@
 package cmd
 
 import (
-	// "fmt"
-	// "os"
-
-	// "github.com/konstructio/colony/internal/exec"
-	// "github.com/konstructio/colony/internal/k8s"
-
 	"encoding/json"
 	"errors"
 	"fmt"
