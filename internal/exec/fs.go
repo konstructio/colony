@@ -1,0 +1,48 @@
+package exec
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+func CreateDirIfNotExist(dir string) error {
+	if err := os.MkdirAll(dir, 0o777); err != nil {
+		return fmt.Errorf("unable to create directory %q: %w", dir, err)
+	}
+
+	return nil
+}
+
+func DeleteFile(location string) error {
+	if err := os.Remove(location); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("file %q couldn't be deleted: %w", location, err)
+	}
+	return nil
+}
+
+func ReadFilesInDir(dir string) ([]string, error) {
+	var templateFiles []string
+
+	// Open the directory
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open directory: %w", err)
+	}
+
+	// Loop through each file in the directory
+	for _, file := range files {
+		if file.IsDir() { // Check if it's a regular file
+			continue
+		}
+
+		filePath := filepath.Join(dir, file.Name())
+		content, err := os.ReadFile(filePath) // Read file content
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
+		}
+		templateFiles = append(templateFiles, string(content))
+	}
+
+	return templateFiles, nil
+}
