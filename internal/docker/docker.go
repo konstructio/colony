@@ -69,7 +69,11 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 		return fmt.Errorf("error getting %q container: %w", constants.ColonyK3sContainerName, err)
 	}
 
-	c.log.Infof("found container name %q with ID %q", strings.TrimPrefix(k3scontainer.Names[0], "/"), k3scontainer.ID[:constants.DefaultDockerIDLength])
+	if len(k3scontainer.Names) > 0 && len(k3scontainer.ID) > constants.DefaultDockerIDLength {
+		c.log.Infof("found container name %q with ID %q", strings.TrimPrefix(k3scontainer.Names[0], "/"), k3scontainer.ID[:constants.DefaultDockerIDLength])
+	} else {
+		c.log.Warnf("found container with ID %q -- unable to parse a name or an ID out of it", k3scontainer.ID)
+	}
 
 	err = c.cli.ContainerStop(ctx, k3scontainer.ID, containerTypes.StopOptions{})
 	if err != nil {
