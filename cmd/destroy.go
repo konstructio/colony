@@ -7,6 +7,7 @@ import (
 
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
+	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +38,7 @@ func getDestroyCommand() *cobra.Command {
 				return fmt.Errorf("error: failed to remove colony container %w", err)
 			}
 
-			err = deleteFile(filepath.Join(pwd, constants.KubeconfigHostPath))
+			err = exec.DeleteFile(filepath.Join(pwd, constants.KubeconfigHostPath))
 			if err != nil {
 				return fmt.Errorf("error: failed to delete kubeconfig file %w", err)
 			}
@@ -45,16 +46,8 @@ func getDestroyCommand() *cobra.Command {
 			//! templates directory is not removed
 
 			log.Info("colony installation removed from host")
-
 			return nil
 		},
 	}
 	return cmd
-}
-
-func deleteFile(location string) error {
-	if err := os.Remove(location); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("file %q couldn't be deleted: %w", location, err)
-	}
-	return nil
 }
