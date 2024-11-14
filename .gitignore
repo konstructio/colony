@@ -25,3 +25,8 @@ go.work.sum
 .env
 tmp/
 dist/
+.vscode
+./templates
+colony.yaml
+colony.yaml.tmpl
+vendor/

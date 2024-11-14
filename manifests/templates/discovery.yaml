@@ -1,0 +1,24 @@
+apiVersion: "tinkerbell.org/v1alpha1"
+kind: Template
+metadata:
+  name: discovery
+  namespace: tink-system
+spec:
+  data: |
+    version: "0.1"
+    name: discovery_spec
+    global_timeout: 1800
+    tasks:
+      - name: "discovery-task"
+        worker: "{{.device_1}}"
+        volumes:
+          - /lib/firmware:/lib/firmware:ro
+        actions:
+          - name: "execute-discovery-script"
+            image: ghcr.io/konstructio/discovery:v0.1.0
+            timeout: 180
+            environment:
+              K1_COLONY_HARDWARE_ID: "{{.colony_hardware_id}}"
+              COLONY_API_KEY: "{{.colony_token}}"
+              CHROOT: y
+              COLONY_API_URL: "{{.colony_api_url}}"
