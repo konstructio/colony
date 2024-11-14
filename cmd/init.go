@@ -294,8 +294,8 @@ func getInitCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "api key for interacting with colony cloud")
 	cmd.Flags().StringVar(&apiURL, "api-url", "https://colony-api-virtual.konstruct.io", "api url for interacting with colony cloud")
-	cmd.Flags().StringVar(&loadBalancerInterface, "load-balancer-interface", "eth0", "the local network interface for colony to use")
-	cmd.Flags().StringVar(&loadBalancerIP, "load-balancer-ip", "192.168.0.192", "the local network interface for colony to use")
+	cmd.Flags().StringVar(&loadBalancerInterface, "load-balancer-interface", "", "the local network interface for colony to use")
+	cmd.Flags().StringVar(&loadBalancerIP, "load-balancer-ip", "", "the local network interface for colony to use")
 
 	cmd.MarkFlagRequired("api-key")
 	cmd.MarkFlagRequired("api-url")
