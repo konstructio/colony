@@ -298,7 +298,6 @@ func getInitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&loadBalancerIP, "load-balancer-ip", "", "the local network interface for colony to use")
 
 	cmd.MarkFlagRequired("api-key")
-	cmd.MarkFlagRequired("api-url")
 	cmd.MarkFlagRequired("load-balancer-interface")
 	cmd.MarkFlagRequired("load-balancer-ip")
 	return cmd
