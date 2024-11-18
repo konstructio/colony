@@ -15,7 +15,8 @@ import (
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/api/core/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -84,7 +85,7 @@ func getInitCommand() *cobra.Command {
 			}
 
 			// Create the secret
-			apiKeySecret := &v1.Secret{
+			apiKeySecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "colony-api",
 					Namespace: "tink-system",
@@ -104,7 +105,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error reading file: %w", err)
 			}
 
-			mgmtKubeConfigSecret := &v1.Secret{
+			mgmtKubeConfigSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "mgmt-kubeconfig",
 					Namespace: "tink-system",
@@ -286,6 +287,88 @@ func getInitCommand() *cobra.Command {
 			err = k8sClient.PatchClusterRole(ctx, clusterRoleName, patchBytes)
 			if err != nil {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
+			}
+
+			talosConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "download-talos",
+					Namespace: "tink-system",
+				},
+				Data: map[string]string{
+					"entrypoint.sh": `#!/usr/bin/env bash
+					# This script is designed to download specific Talos files required for an IPXE script to work.
+					set -euxo pipefail
+					if ! which wget &>/dev/null; then
+					apk add --update wget
+					fi
+					base_url=$1
+					output_dir=$2
+					files=("initramfs-amd64.xz" "vmlinuz-amd64")
+					for file in "${files[@]}"; do
+					wget "${base_url}/${file}" -O "${output_dir}/${file}"
+					done`,
+				},
+			}
+
+			err = k8sClient.CreateConfigMap(ctx, talosConfigMap)
+			if err != nil {
+				return fmt.Errorf("error creating configmap: %w", err)
+			}
+			talosJob := &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "download-talos",
+				},
+				Spec: batchv1.JobSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name:    "download-talos",
+									Image:   "bash:5.2.2",
+									Command: []string{"/script/entrypoint.sh"},
+									Args: []string{
+										"https://github.com/siderolabs/talos/releases/download/v1.8.0",
+										"/output",
+									},
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "hook-artifacts",
+											MountPath: "/output",
+										},
+										{
+											Name:      "configmap-volume",
+											MountPath: "/script",
+										},
+									},
+								},
+							},
+							RestartPolicy: corev1.RestartPolicyOnFailure,
+							Volumes: []corev1.Volume{
+								{
+									Name: "hook-artifacts",
+									VolumeSource: corev1.VolumeSource{
+										HostPath: &corev1.HostPathVolumeSource{
+											Path: "/opt/hook",
+											Type: new(corev1.HostPathType), // DirectoryOrCreate by default
+										},
+									},
+								},
+								{
+									Name: "configmap-volume",
+									VolumeSource: corev1.VolumeSource{
+										ConfigMap: &corev1.ConfigMapVolumeSource{
+											DefaultMode: new(int32), // 0700 in octal
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			err = k8sClient.CreateJob(ctx, talosJob)
+			if err != nil {
+				return fmt.Errorf("error creating job: %w", err)
 			}
 
 			return nil
