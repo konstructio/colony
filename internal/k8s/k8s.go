@@ -319,7 +319,7 @@ func BuildJob(downloadURL, name string) (*batchv1.Job, error) {
 						{
 							Name:    fmt.Sprintf("download-%s", name),
 							Image:   "bash:5.2.2",
-							Command: []string{"/script/entrypoint.sh"},
+							Command: []string{"bash", "-c", "/script/entrypoint.sh"},
 							Args: []string{
 								downloadURL,
 								"/output",
