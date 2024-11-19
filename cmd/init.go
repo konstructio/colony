@@ -15,6 +15,7 @@ import (
 	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
+	"github.com/konstructio/colony/scripts"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -289,7 +290,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
 			}
 
-			var downloadJobs = []configs.DownloadJob{
+			downloadJobs := []configs.DownloadJob{
 				{
 					DownloadURL: "https://github.com/siderolabs/talos/releases/download/v1.8.0",
 					Name:        "talos",
@@ -301,8 +302,7 @@ func getInitCommand() *cobra.Command {
 			}
 
 			for _, job := range downloadJobs {
-
-				script, err := os.ReadFile(filepath.Join(pwd, "scripts", fmt.Sprintf("%s.sh", job.Name)))
+				script, err := scripts.Scripts.ReadFile(fmt.Sprintf("%s.sh", job.Name))
 				if err != nil {
 					return fmt.Errorf("error reading file: %w", err)
 				}
@@ -326,7 +326,6 @@ func getInitCommand() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("error creating job: %w", err)
 				}
-
 			}
 
 			return nil
