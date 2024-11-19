@@ -167,7 +167,7 @@ func getInitCommand() *cobra.Command {
 			}
 
 			log.Info("Applying tinkerbell templates")
-			colonyTemplates, err := manifests.Templates.ReadDir(".")
+			colonyTemplates, err := manifests.Templates.ReadDir("templates")
 			if err != nil {
 				return fmt.Errorf("error reading templates: %w", err)
 			}
