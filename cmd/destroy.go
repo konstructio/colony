@@ -21,6 +21,11 @@ func getDestroyCommand() *cobra.Command {
 			ctx := cmd.Context()
 			log := logger.New(logger.Debug)
 
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("error getting user home directory: %w", err)
+			}
+
 			log.Info("creating docker client")
 			dockerCLI, err := docker.New(log)
 			if err != nil {
@@ -28,24 +33,18 @@ func getDestroyCommand() *cobra.Command {
 			}
 			defer dockerCLI.Close()
 
-			pwd, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("error getting current working directory: %w", err)
-			}
-
 			err = dockerCLI.RemoveColonyK3sContainer(ctx)
 			if err != nil {
 				return fmt.Errorf("error: failed to remove colony container %w", err)
 			}
 
-			err = exec.DeleteFile(filepath.Join(pwd, constants.KubeconfigHostPath))
+			err = exec.DeleteDirectory(filepath.Join(homeDir, constants.ColonyDir))
 			if err != nil {
 				return fmt.Errorf("error: failed to delete kubeconfig file %w", err)
 			}
 
-			//! templates directory is not removed
+			log.Info("colony installation removed successfully")
 
-			log.Info("colony installation removed from host")
 			return nil
 		},
 	}
