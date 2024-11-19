@@ -8,10 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,10 +80,10 @@ func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 
 func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 	// Create the secret
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "colony-api",
-			Namespace: "tink-system",
+			Name:      constants.ColonyAPISecretName,
+			Namespace: constants.ColonyNamespace,
 		},
 		Data: map[string][]byte{
 			"api-key": []byte(apiKey),
@@ -94,7 +95,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	c.logger.Debugf("created Secret %q in Namespace %q", s.Name, s.Namespace)
+	c.logger.Infof("created Secret %q in Namespace %q", s.Name, s.Namespace)
 
 	return nil
 }
@@ -121,7 +122,7 @@ func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	c.logger.Debugf("created Secret %q in Namespace %q", s.Name, s.Namespace)
+	c.logger.Infof("created Secret %q in Namespace %q", s.Name, s.Namespace)
 
 	return nil
 }

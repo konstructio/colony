@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/logger"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -18,8 +19,8 @@ import (
 func TestClient_CreateAPIKeySecret(t *testing.T) {
 	t.Run("successful creation", func(tt *testing.T) {
 		var (
-			secretNamespace = "tink-system"
-			secretName      = "colony-api"
+			secretNamespace = constants.ColonyNamespace
+			secretName      = constants.ColonyAPISecretName
 			secretKey       = "api-key"
 			secretValue     = "super-duper-secret"
 
