@@ -334,7 +334,7 @@ func (c *Client) returnDeploymentObject(ctx context.Context, matchLabel string, 
 // WaitForKubernetesAPIHealthy waits for the Kubernetes API to be healthy
 // by checking the server version every 5 seconds or until the timeout is reached.
 func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.Duration) error {
-	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(_ context.Context) (bool, error) {
 		_, err := c.clientSet.Discovery().ServerVersion()
 		if err != nil {
 			if isNetworkingError(err) {
