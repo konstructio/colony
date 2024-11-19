@@ -437,7 +437,7 @@ func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.D
 				return false, nil
 			}
 
-			return false, fmt.Errorf("error getting server version: %w", err)
+			return false, nil
 		}
 
 		return true, nil
