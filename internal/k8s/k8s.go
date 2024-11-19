@@ -202,6 +202,52 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 	return nil
 }
 
+type DeploymentDetails struct {
+	Label       string
+	Value       string
+	Namespace   string
+	ReadTimeout int
+	WaitTimeout int
+}
+
+func (c *Client) FetchAndWaitForDeployments(ctx context.Context, deployments []DeploymentDetails) error {
+	for _, deployment := range deployments {
+		var (
+			label       = deployment.Label
+			value       = deployment.Value
+			namespace   = deployment.Namespace
+			readTimeout = deployment.ReadTimeout
+			waitTimeout = deployment.WaitTimeout
+		)
+
+		if readTimeout == 0 {
+			readTimeout = 50
+		}
+
+		if waitTimeout == 0 {
+			waitTimeout = 120
+		}
+
+		c.logger.Infof("waiting for deployment with label %q=%q in namespace %q to be ready", label, value, namespace)
+
+		deployment, err := c.ReturnDeploymentObject(ctx, label, value, namespace, readTimeout)
+		if err != nil {
+			return fmt.Errorf("error finding deployment with labels %q: %w", fmt.Sprintf("%s=%s", label, value), err)
+		}
+
+		c.logger.Infof("deployment %q found in namespace %q", deployment.Name, deployment.Namespace)
+
+		_, err = c.WaitForDeploymentReady(ctx, deployment, waitTimeout)
+		if err != nil {
+			return fmt.Errorf("error waiting for deployment %q: %w", deployment.Name, err)
+		}
+
+		c.logger.Infof("deployment %q in namespace %q is ready", deployment.Name, deployment.Namespace)
+	}
+
+	return nil
+}
+
 // WaitForDeploymentReady waits for a target Deployment to become ready
 func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
 	deploymentName := deployment.Name
@@ -306,7 +352,6 @@ func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, 
 }
 
 func BuildJob(downloadURL, name string) (*batchv1.Job, error) {
-
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("download-%s", name),
@@ -362,11 +407,9 @@ func BuildJob(downloadURL, name string) (*batchv1.Job, error) {
 	}
 
 	return job, nil
-
 }
 
 func BuildConfigMap(name, script string) (*corev1.ConfigMap, error) {
-
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("download-%s", name),
@@ -378,5 +421,4 @@ func BuildConfigMap(name, script string) (*corev1.ConfigMap, error) {
 	}
 
 	return cm, nil
-
 }

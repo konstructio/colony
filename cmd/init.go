@@ -69,19 +69,11 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
-			coreDNSDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"kubernetes.io/name",
-				"CoreDNS",
-				"kube-system",
-				50,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding coredns deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 120)
-			if err != nil {
+			if err := k8sClient.FetchAndWaitForDeployments(ctx, []k8s.DeploymentDetails{{
+				Label:     "kubernetes.io/name",
+				Value:     "CoreDNS",
+				Namespace: "kube-system",
+			}}); err != nil {
 				return fmt.Errorf("error waiting for coredns deployment: %w", err)
 			}
 
@@ -121,116 +113,48 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
 
-			metricsServerDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"k8s-app",
-				"metrics-server",
-				"kube-system",
-				50,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding metrics-server deployment: %w", err)
+			deploymentsToWaitFor := []k8s.DeploymentDetails{
+				{
+					Label:     "k8s-app",
+					Value:     "metrics-server",
+					Namespace: "kube-system",
+				},
+				{
+					Label:     "app.kubernetes.io/name",
+					Value:     "colony-agent",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "hegel",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "rufio",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "smee",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "tink-server",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:       "app",
+					Value:       "tink-controller",
+					Namespace:   constants.ColonyNamespace,
+					ReadTimeout: 180,
+					WaitTimeout: 120,
+				},
 			}
 
-			_, err = k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for metrics server deployment: %w", err)
-			}
-
-			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app.kubernetes.io/name",
-				"colony-agent",
-				constants.ColonyNamespace,
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding colony-agent deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, colonyAgentDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for colony agent deployment: %w", err)
-			}
-
-			hegelDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"hegel",
-				constants.ColonyNamespace,
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding hegel deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, hegelDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for hegel deployment: %w", err)
-			}
-
-			rufioDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"rufio",
-				constants.ColonyNamespace,
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding rufio deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, rufioDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for rufio deployment: %w", err)
-			}
-
-			smeeDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"smee",
-				constants.ColonyNamespace,
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding smee deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, smeeDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for smee deployment: %w", err)
-			}
-
-			tinkServerDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"tink-server",
-				constants.ColonyNamespace,
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding tink-server deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, tinkServerDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for tink server deployment: %w", err)
-			}
-
-			tinkControllerDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"tink-controller",
-				constants.ColonyNamespace,
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding tink-controller deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, tinkControllerDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for tink controller deployment: %w", err)
+			if err := k8sClient.FetchAndWaitForDeployments(ctx, deploymentsToWaitFor); err != nil {
+				return fmt.Errorf("error waiting for deployment: %w", err)
 			}
 
 			k8sClient, err = k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
