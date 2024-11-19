@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-talos
+  namespace: tink-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: download-talos
+          image: bash:5.2.2
+          command: ["/script/entrypoint.sh"]
+          args:
+            [
+              "https://github.com/siderolabs/talos/releases/download/v1.8.0",
+              "/output",
+            ]
+          volumeMounts:
+            - mountPath: /output
+              name: hook-artifacts
+            - mountPath: /script
+              name: configmap-volume
+      restartPolicy: OnFailure
+      volumes:
+        - name: hook-artifacts
+          hostPath:
+            path: /opt/hook
+            type: DirectoryOrCreate
+        - name: configmap-volume
+          configMap:
+            defaultMode: 0700
+            name: download-talos

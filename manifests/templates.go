@@ -4,8 +4,11 @@ import (
 	"embed"
 )
 
-//go:embed templates/*.yaml
-var Templates embed.FS
-
 //go:embed colony/*.yaml.tmpl
 var Colony embed.FS
+
+//go:embed downloads/*.yaml
+var Downloads embed.FS
+
+//go:embed templates/*.yaml
+var Templates embed.FS

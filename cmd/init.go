@@ -7,15 +7,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/konstructio/colony/configs"
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/konstructio/colony/manifests"
-	"github.com/konstructio/colony/scripts"
 	"github.com/spf13/cobra"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -166,7 +165,11 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
-			log.Info("Applying tinkerbell templates")
+			if err := k8sClient.LoadMappingsFromKubernetes(); err != nil {
+				return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
+			}
+
+			log.Info("applying tinkerbell templates")
 			colonyTemplates, err := manifests.Templates.ReadDir("templates")
 			if err != nil {
 				return fmt.Errorf("error reading templates: %w", err)
@@ -174,7 +177,7 @@ func getInitCommand() *cobra.Command {
 			var manifestsFiles []string
 
 			for _, file := range colonyTemplates {
-				content, err := manifests.Templates.ReadFile(file.Name())
+				content, err := manifests.Templates.ReadFile(filepath.Join("templates", file.Name()))
 				if err != nil {
 					return fmt.Errorf("error reading templates file: %w", err)
 				}
@@ -182,6 +185,27 @@ func getInitCommand() *cobra.Command {
 			}
 
 			if err := k8sClient.ApplyManifests(ctx, manifestsFiles); err != nil {
+				return fmt.Errorf("error applying templates: %w", err)
+			}
+
+			log.Info("downloading operating systems for hook")
+
+			downloadTemplates, err := manifests.Downloads.ReadDir("downloads")
+			if err != nil {
+				return fmt.Errorf("error reading templates: %w", err)
+			}
+
+			var downloadFiles []string
+
+			for _, file := range downloadTemplates {
+				content, err := manifests.Downloads.ReadFile(filepath.Join("downloads", file.Name()))
+				if err != nil {
+					return fmt.Errorf("error reading templates file: %w", err)
+				}
+				downloadFiles = append(downloadFiles, string(content))
+			}
+
+			if err := k8sClient.ApplyManifests(ctx, downloadFiles); err != nil {
 				return fmt.Errorf("error applying templates: %w", err)
 			}
 
@@ -206,44 +230,6 @@ func getInitCommand() *cobra.Command {
 			err = k8sClient.PatchClusterRole(ctx, clusterRoleName, patchBytes)
 			if err != nil {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
-			}
-
-			downloadJobs := []configs.DownloadJob{
-				{
-					DownloadURL: "https://github.com/siderolabs/talos/releases/download/v1.8.0",
-					Name:        "talos",
-				},
-				{
-					DownloadURL: "https://cloud-images.ubuntu.com/daily/server/jammy/current/jammy-server-cloudimg-amd64.img",
-					Name:        "ubuntu-jammy",
-				},
-			}
-
-			for _, job := range downloadJobs {
-				script, err := scripts.Scripts.ReadFile(fmt.Sprintf("%s.sh", job.Name))
-				if err != nil {
-					return fmt.Errorf("error reading file: %w", err)
-				}
-
-				configMap, err := k8s.BuildConfigMap(job.Name, string(script))
-				if err != nil {
-					return fmt.Errorf("error building configmap: %w", err)
-				}
-
-				err = k8sClient.CreateConfigMap(ctx, configMap)
-				if err != nil {
-					return fmt.Errorf("error creating configmap: %w", err)
-				}
-
-				jobSpec, err := k8s.BuildJob(job.DownloadURL, job.Name)
-				if err != nil {
-					return fmt.Errorf("error building job: %w", err)
-				}
-
-				err = k8sClient.CreateJob(ctx, jobSpec)
-				if err != nil {
-					return fmt.Errorf("error creating job: %w", err)
-				}
 			}
 
 			return nil
