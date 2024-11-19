@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -88,7 +89,7 @@ func (c *Client) RemoveColonyK3sContainer(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) CreateColonyK3sContainer(ctx context.Context, colonyK3sBootstrapPath, colonyKubeconfigPath string) error {
+func (c *Client) CreateColonyK3sContainer(ctx context.Context, colonyK3sBootstrapPath, colonyKubeconfigPath, homeDir string) error {
 	log := logger.New(logger.Debug)
 
 	// check for an existing colony-k3s container
@@ -124,14 +125,9 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, colonyK3sBootstra
 	mounts := []mount.Mount{
 		{
 			Type:   mount.TypeBind,
-			Source: colonyKubeconfigPath,
-			Target: "/output",
+			Source: filepath.Join(homeDir, constants.ColonyDir),
+			Target: filepath.Join(homeDir, constants.ColonyDir),
 		},
-		// {
-		// 	Type:   mount.TypeVolume,
-		// 	Source: "k3s-server",
-		// 	Target: "/var/lib/rancher/k3s",
-		// },
 		{
 			Type:   mount.TypeBind,
 			Source: colonyK3sBootstrapPath,

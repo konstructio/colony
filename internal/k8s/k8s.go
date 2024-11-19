@@ -338,11 +338,15 @@ func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.D
 		_, err := c.clientSet.Discovery().ServerVersion()
 		if err != nil {
 			if isNetworkingError(err) {
-				c.logger.Warn("connection to kube-apiserver error, retrying: %s", err)
+				c.logger.Warnf("connection to kube-apiserver error, retrying: %s", err)
+				return false, nil
+			}
+			if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) {
+				c.logger.Warnf("service unavailable or timeout error, retrying: %s", err)
 				return false, nil
 			}
 
-			return false, nil
+			return false, fmt.Errorf("error getting server version: %w", err)
 		}
 
 		return true, nil

@@ -50,7 +50,6 @@ func getInitCommand() *cobra.Command {
 
 			log.Info("colony api key provided is valid")
 
-			//!
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
 				return fmt.Errorf("error getting user home directory: %w", err)
@@ -87,7 +86,6 @@ func getInitCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error executing template: %w", err)
 			}
-			//!
 
 			dockerCLI, err := docker.New(log)
 			if err != nil {
@@ -95,7 +93,7 @@ func getInitCommand() *cobra.Command {
 			}
 			defer dockerCLI.Close()
 
-			err = dockerCLI.CreateColonyK3sContainer(ctx, colonyK3sBootstrapPath, colonyKubeconfigPath)
+			err = dockerCLI.CreateColonyK3sContainer(ctx, colonyK3sBootstrapPath, colonyKubeconfigPath, homeDir)
 			if err != nil {
 				return fmt.Errorf("error creating container: %w", err)
 			}
@@ -137,7 +135,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
 
-			k8sconfig, err := os.ReadFile(constants.KubeconfigHostPath)
+			k8sconfig, err := os.ReadFile(colonyKubeconfigPath)
 			if err != nil {
 				return fmt.Errorf("error reading file: %w", err)
 			}
@@ -272,6 +270,7 @@ func getInitCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
 			}
+			log.Info("colony init completed successfully")
 
 			return nil
 		},
