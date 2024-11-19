@@ -317,7 +317,7 @@ func getInitCommand() *cobra.Command {
 					return fmt.Errorf("error creating configmap: %w", err)
 				}
 
-				jobSpec, err := k8s.BuildJob(job.Name, job.DownloadURL)
+				jobSpec, err := k8s.BuildJob(job.DownloadURL, job.Name)
 				if err != nil {
 					return fmt.Errorf("error building job: %w", err)
 				}
