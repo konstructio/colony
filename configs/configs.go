@@ -10,8 +10,3 @@ var Version = DefaultVersion
 type Config struct {
 	Version string
 }
-
-type DownloadJob struct {
-	DownloadURL string
-	Name        string
-}

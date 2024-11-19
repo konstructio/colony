@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
+	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/konstructio/colony/manifests"
@@ -19,6 +21,11 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type ColonyTokens struct {
+	LoadBalancerIP        string
+	LoadBalancerInterface string
+}
 
 func getInitCommand() *cobra.Command {
 	var apiKey, apiURL, loadBalancerIP, loadBalancerInterface string
@@ -43,23 +50,57 @@ func getInitCommand() *cobra.Command {
 
 			log.Info("colony api key provided is valid")
 
+			//!
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("error getting user home directory: %w", err)
+			}
+
+			err = exec.CreateDirIfNotExist(filepath.Join(homeDir, constants.ColonyDir, "k3s-bootstrap"))
+			if err != nil {
+				return fmt.Errorf("error creating directory templates: %w", err)
+			}
+
+			colonyYamlTmpl, err := manifests.Colony.ReadFile(fmt.Sprintf("colony/%s.tmpl", constants.ColonyYamlPath))
+			if err != nil {
+				return fmt.Errorf("error reading templates file: %w", err)
+			}
+
+			tmpl, err := template.New("colony").Parse(string(colonyYamlTmpl))
+			if err != nil {
+				return fmt.Errorf("error parsing template: %w", err)
+			}
+
+			colonyK3sBootstrapPath := filepath.Join(homeDir, constants.ColonyDir, "k3s-bootstrap", constants.ColonyYamlPath)
+			colonyKubeconfigPath := filepath.Join(homeDir, constants.ColonyDir, constants.KubeconfigHostPath)
+
+			outputFile, err := os.Create(colonyK3sBootstrapPath)
+			if err != nil {
+				return fmt.Errorf("error creating output file: %w", err)
+			}
+			defer outputFile.Close()
+
+			err = tmpl.Execute(outputFile, &ColonyTokens{
+				LoadBalancerIP:        loadBalancerIP,
+				LoadBalancerInterface: loadBalancerInterface,
+			})
+			if err != nil {
+				return fmt.Errorf("error executing template: %w", err)
+			}
+			//!
+
 			dockerCLI, err := docker.New(log)
 			if err != nil {
 				return fmt.Errorf("error creating docker client: %w", err)
 			}
 			defer dockerCLI.Close()
 
-			pwd, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("error getting current working directory: %w", err)
-			}
-
-			err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface, pwd)
+			err = dockerCLI.CreateColonyK3sContainer(ctx, colonyK3sBootstrapPath, colonyKubeconfigPath)
 			if err != nil {
 				return fmt.Errorf("error creating container: %w", err)
 			}
 
-			k8sClient, err := k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
+			k8sClient, err := k8s.New(log, colonyKubeconfigPath)
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
@@ -160,7 +201,7 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error waiting for deployment: %w", err)
 			}
 
-			k8sClient, err = k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
+			k8sClient, err = k8s.New(log, colonyKubeconfigPath)
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
