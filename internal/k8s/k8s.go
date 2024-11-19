@@ -133,7 +133,6 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 	decoderUnstructured := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 
 	for _, manifest := range manifests {
-		fmt.Println(manifest)
 		var obj unstructured.Unstructured
 		_, gvk, err := decoderUnstructured.Decode([]byte(manifest), nil, &obj)
 		if err != nil {
