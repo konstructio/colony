@@ -60,7 +60,7 @@ func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 		clientSet:  clientset,
 		dynamic:    dynamic,
 		config:     config,
-		SecretName: "colony-api",
+		SecretName: constants.ColonyAPISecretName,
 		logger:     logger,
 	}, nil
 }
