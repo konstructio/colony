@@ -201,7 +201,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	waitInterval := 2 * time.Second
 	timeout := 15 * time.Second
 
-	log.Infof("Checking for file %s every %f...", filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval.Seconds())
+	log.Infof("Checking for file %s every %.2f seconds...", filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval.Seconds())
 
 	err = waitUntilFileExists(log, filepath.Join(pwd, constants.KubeconfigHostPath), waitInterval, timeout)
 	if err != nil {
