@@ -100,7 +100,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, loadBalancerIP, l
 	log := logger.New(logger.Debug)
 
 	// TODO  tag a new repo for permanent housing, removes templates from database
-	colonyTemplateURL := "https://raw.githubusercontent.com/konstructio/colony/refs/heads/add-jobs/manifests/k3s-bootstrap/colony.yaml.tmpl"
+	colonyTemplateURL := "https://raw.githubusercontent.com/konstructio/colony/refs/heads/add-jobs/manifests/colony/colony.yaml.tmpl"
 	colonyTemplateYaml := filepath.Join(pwd, fmt.Sprintf("%s.tmpl", constants.ColonyYamlPath))
 
 	err := download.FileFromURL(colonyTemplateURL, colonyTemplateYaml)
