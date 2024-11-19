@@ -246,7 +246,9 @@ func getInitCommand() *cobra.Command {
 
 			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
 			for _, template := range templates {
-				url := fmt.Sprintf("https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/%s", template)
+
+				// TODO need to tag the repo and update this to leverage cli version
+				url := fmt.Sprintf("https://raw.githubusercontent.com/konstructio/colony/refs/heads/main/manifests/templates/%s", template)
 				filename := filepath.Join(pwd, "templates", template)
 
 				log.Infof("downloading template from %q into %q", url, filename)
