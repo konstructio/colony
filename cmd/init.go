@@ -13,7 +13,7 @@ import (
 	"github.com/konstructio/colony/internal/docker"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
-	"github.com/konstructio/colony/manifests/templates"
+	"github.com/konstructio/colony/manifests"
 	"github.com/konstructio/colony/scripts"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -167,22 +167,21 @@ func getInitCommand() *cobra.Command {
 			}
 
 			log.Info("Applying tinkerbell templates")
-			colonyTemplates, err := templates.Templates.ReadDir(".")
+			colonyTemplates, err := manifests.Templates.ReadDir(".")
 			if err != nil {
 				return fmt.Errorf("error reading templates: %w", err)
 			}
-			var manifests []string
+			var manifestsFiles []string
 
 			for _, file := range colonyTemplates {
-				content, err := templates.Templates.ReadFile(file.Name())
+				content, err := manifests.Templates.ReadFile(file.Name())
 				if err != nil {
 					return fmt.Errorf("error reading templates file: %w", err)
 				}
-				manifests = append(manifests, string(content))
-
+				manifestsFiles = append(manifestsFiles, string(content))
 			}
 
-			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
+			if err := k8sClient.ApplyManifests(ctx, manifestsFiles); err != nil {
 				return fmt.Errorf("error applying templates: %w", err)
 			}
 
