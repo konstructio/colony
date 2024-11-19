@@ -116,7 +116,7 @@ func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, c
 	return nil
 }
 
-func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
+func (c *Client) CreateSecret(ctx context.Context, secret *corev1.Secret) error {
 	s, err := c.clientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating secret: %w", err)
@@ -127,7 +127,7 @@ func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
 	return nil
 }
 
-func (c *Client) CreateConfigMap(ctx context.Context, configMap *v1.ConfigMap) error {
+func (c *Client) CreateConfigMap(ctx context.Context, configMap *corev1.ConfigMap) error {
 	_, err := c.clientSet.CoreV1().ConfigMaps(configMap.GetNamespace()).Create(ctx, configMap, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating ConfigMap: %w", err)
@@ -303,4 +303,80 @@ func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, 
 		return nil, fmt.Errorf("error waiting for Deployment: %w", err)
 	}
 	return deployment, nil
+}
+
+func BuildJob(downloadURL, name string) (*batchv1.Job, error) {
+
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("download-%s", name),
+			Namespace: constants.ColonyNamespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    fmt.Sprintf("download-%s", name),
+							Image:   "bash:5.2.2",
+							Command: []string{"/script/entrypoint.sh"},
+							Args: []string{
+								downloadURL,
+								"/output",
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "hook-artifacts",
+									MountPath: "/output",
+								},
+								{
+									Name:      fmt.Sprintf("download-%s", name),
+									MountPath: "/script",
+								},
+							},
+						},
+					},
+					RestartPolicy: corev1.RestartPolicyOnFailure,
+					Volumes: []corev1.Volume{
+						{
+							Name: "hook-artifacts",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/opt/hook",
+									Type: new(corev1.HostPathType),
+								},
+							},
+						},
+						{
+							Name: fmt.Sprintf("download-%s", name),
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{Name: fmt.Sprintf("download-%s", name)},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return job, nil
+
+}
+
+func BuildConfigMap(name, script string) (*corev1.ConfigMap, error) {
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("download-%s", name),
+			Namespace: constants.ColonyNamespace,
+		},
+		Data: map[string]string{
+			"entrypoint.sh": script,
+		},
+	}
+
+	return cm, nil
+
 }

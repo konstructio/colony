@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/konstructio/colony/configs"
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
@@ -15,7 +16,6 @@ import (
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/spf13/cobra"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,8 +87,8 @@ func getInitCommand() *cobra.Command {
 			// Create the secret
 			apiKeySecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "colony-api",
-					Namespace: "tink-system",
+					Name:      constants.ColonyAPISecretName,
+					Namespace: constants.ColonyNamespace,
 				},
 				Data: map[string][]byte{
 					"api-key": []byte(apiKey),
@@ -108,7 +108,7 @@ func getInitCommand() *cobra.Command {
 			mgmtKubeConfigSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "mgmt-kubeconfig",
-					Namespace: "tink-system",
+					Namespace: constants.ColonyNamespace,
 				},
 				Data: map[string][]byte{
 					"kubeconfig": k8sconfig,
@@ -140,7 +140,7 @@ func getInitCommand() *cobra.Command {
 				ctx,
 				"app.kubernetes.io/name",
 				"colony-agent",
-				"tink-system",
+				constants.ColonyNamespace,
 				180,
 			)
 			if err != nil {
@@ -156,7 +156,7 @@ func getInitCommand() *cobra.Command {
 				ctx,
 				"app",
 				"hegel",
-				"tink-system",
+				constants.ColonyNamespace,
 				180,
 			)
 			if err != nil {
@@ -172,7 +172,7 @@ func getInitCommand() *cobra.Command {
 				ctx,
 				"app",
 				"rufio",
-				"tink-system",
+				constants.ColonyNamespace,
 				180,
 			)
 			if err != nil {
@@ -188,7 +188,7 @@ func getInitCommand() *cobra.Command {
 				ctx,
 				"app",
 				"smee",
-				"tink-system",
+				constants.ColonyNamespace,
 				180,
 			)
 			if err != nil {
@@ -204,7 +204,7 @@ func getInitCommand() *cobra.Command {
 				ctx,
 				"app",
 				"tink-server",
-				"tink-system",
+				constants.ColonyNamespace,
 				180,
 			)
 			if err != nil {
@@ -220,7 +220,7 @@ func getInitCommand() *cobra.Command {
 				ctx,
 				"app",
 				"tink-controller",
-				"tink-system",
+				constants.ColonyNamespace,
 				180,
 			)
 			if err != nil {
@@ -289,86 +289,44 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
 			}
 
-			talosConfigMap := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "download-talos",
-					Namespace: "tink-system",
+			var downloadJobs = []configs.DownloadJob{
+				{
+					DownloadURL: "https://github.com/siderolabs/talos/releases/download/v1.8.0",
+					Name:        "talos",
 				},
-				Data: map[string]string{
-					"entrypoint.sh": `#!/usr/bin/env bash
-					# This script is designed to download specific Talos files required for an IPXE script to work.
-					set -euxo pipefail
-					if ! which wget &>/dev/null; then
-					apk add --update wget
-					fi
-					base_url=$1
-					output_dir=$2
-					files=("initramfs-amd64.xz" "vmlinuz-amd64")
-					for file in "${files[@]}"; do
-					wget "${base_url}/${file}" -O "${output_dir}/${file}"
-					done`,
+				{
+					DownloadURL: "https://cloud-images.ubuntu.com/daily/server/jammy/current/jammy-server-cloudimg-amd64.img",
+					Name:        "ubuntu-jammy",
 				},
 			}
 
-			err = k8sClient.CreateConfigMap(ctx, talosConfigMap)
-			if err != nil {
-				return fmt.Errorf("error creating configmap: %w", err)
-			}
-			talosJob := &batchv1.Job{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "download-talos",
-				},
-				Spec: batchv1.JobSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name:    "download-talos",
-									Image:   "bash:5.2.2",
-									Command: []string{"/script/entrypoint.sh"},
-									Args: []string{
-										"https://github.com/siderolabs/talos/releases/download/v1.8.0",
-										"/output",
-									},
-									VolumeMounts: []corev1.VolumeMount{
-										{
-											Name:      "hook-artifacts",
-											MountPath: "/output",
-										},
-										{
-											Name:      "configmap-volume",
-											MountPath: "/script",
-										},
-									},
-								},
-							},
-							RestartPolicy: corev1.RestartPolicyOnFailure,
-							Volumes: []corev1.Volume{
-								{
-									Name: "hook-artifacts",
-									VolumeSource: corev1.VolumeSource{
-										HostPath: &corev1.HostPathVolumeSource{
-											Path: "/opt/hook",
-											Type: new(corev1.HostPathType), // DirectoryOrCreate by default
-										},
-									},
-								},
-								{
-									Name: "configmap-volume",
-									VolumeSource: corev1.VolumeSource{
-										ConfigMap: &corev1.ConfigMapVolumeSource{
-											DefaultMode: new(int32), // 0700 in octal
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}
-			err = k8sClient.CreateJob(ctx, talosJob)
-			if err != nil {
-				return fmt.Errorf("error creating job: %w", err)
+			for _, job := range downloadJobs {
+
+				script, err := os.ReadFile(filepath.Join(pwd, "scripts", fmt.Sprintf("%s.sh", job.Name)))
+				if err != nil {
+					return fmt.Errorf("error reading file: %w", err)
+				}
+
+				configMap, err := k8s.BuildConfigMap(job.Name, string(script))
+				if err != nil {
+					return fmt.Errorf("error building configmap: %w", err)
+				}
+
+				err = k8sClient.CreateConfigMap(ctx, configMap)
+				if err != nil {
+					return fmt.Errorf("error creating configmap: %w", err)
+				}
+
+				jobSpec, err := k8s.BuildJob(job.Name, job.DownloadURL)
+				if err != nil {
+					return fmt.Errorf("error building job: %w", err)
+				}
+
+				err = k8sClient.CreateJob(ctx, jobSpec)
+				if err != nil {
+					return fmt.Errorf("error creating job: %w", err)
+				}
+
 			}
 
 			return nil
@@ -381,7 +339,6 @@ func getInitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&loadBalancerIP, "load-balancer-ip", "", "the local network interface for colony to use")
 
 	cmd.MarkFlagRequired("api-key")
-	cmd.MarkFlagRequired("api-url")
 	cmd.MarkFlagRequired("load-balancer-interface")
 	cmd.MarkFlagRequired("load-balancer-ip")
 	return cmd
