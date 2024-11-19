@@ -69,11 +69,11 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
-			if err := k8sClient.FetchAndWaitForDeployments(ctx, []k8s.DeploymentDetails{{
+			if err := k8sClient.FetchAndWaitForDeployments(ctx, k8s.DeploymentDetails{
 				Label:     "kubernetes.io/name",
 				Value:     "CoreDNS",
 				Namespace: "kube-system",
-			}}); err != nil {
+			}); err != nil {
 				return fmt.Errorf("error waiting for coredns deployment: %w", err)
 			}
 
@@ -153,7 +153,7 @@ func getInitCommand() *cobra.Command {
 				},
 			}
 
-			if err := k8sClient.FetchAndWaitForDeployments(ctx, deploymentsToWaitFor); err != nil {
+			if err := k8sClient.FetchAndWaitForDeployments(ctx, deploymentsToWaitFor...); err != nil {
 				return fmt.Errorf("error waiting for deployment: %w", err)
 			}
 

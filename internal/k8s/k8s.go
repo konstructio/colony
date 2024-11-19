@@ -210,7 +210,7 @@ type DeploymentDetails struct {
 	WaitTimeout int
 }
 
-func (c *Client) FetchAndWaitForDeployments(ctx context.Context, deployments []DeploymentDetails) error {
+func (c *Client) FetchAndWaitForDeployments(ctx context.Context, deployments ...DeploymentDetails) error {
 	for _, deployment := range deployments {
 		var (
 			label       = deployment.Label
@@ -230,14 +230,14 @@ func (c *Client) FetchAndWaitForDeployments(ctx context.Context, deployments []D
 
 		c.logger.Infof("waiting for deployment with label %q=%q in namespace %q to be ready", label, value, namespace)
 
-		deployment, err := c.ReturnDeploymentObject(ctx, label, value, namespace, readTimeout)
+		deployment, err := c.returnDeploymentObject(ctx, label, value, namespace, readTimeout)
 		if err != nil {
 			return fmt.Errorf("error finding deployment with labels %q: %w", fmt.Sprintf("%s=%s", label, value), err)
 		}
 
 		c.logger.Infof("deployment %q found in namespace %q", deployment.Name, deployment.Namespace)
 
-		_, err = c.WaitForDeploymentReady(ctx, deployment, waitTimeout)
+		_, err = c.waitForDeploymentReady(ctx, deployment, waitTimeout)
 		if err != nil {
 			return fmt.Errorf("error waiting for deployment %q: %w", deployment.Name, err)
 		}
@@ -248,8 +248,8 @@ func (c *Client) FetchAndWaitForDeployments(ctx context.Context, deployments []D
 	return nil
 }
 
-// WaitForDeploymentReady waits for a target Deployment to become ready
-func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
+// waitForDeploymentReady waits for a target Deployment to become ready
+func (c *Client) waitForDeploymentReady(ctx context.Context, deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
 	deploymentName := deployment.Name
 	namespace := deployment.Namespace
 
@@ -312,7 +312,7 @@ func isNetworkingError(err error) bool {
 	return false
 }
 
-func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, matchLabelValue string, namespace string, timeoutSeconds int) (*appsv1.Deployment, error) {
+func (c *Client) returnDeploymentObject(ctx context.Context, matchLabel string, matchLabelValue string, namespace string, timeoutSeconds int) (*appsv1.Deployment, error) {
 	var deployment *appsv1.Deployment
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
