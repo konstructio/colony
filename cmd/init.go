@@ -11,10 +11,9 @@ import (
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
-	"github.com/konstructio/colony/internal/download"
-	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
+	"github.com/konstructio/colony/manifests/templates"
 	"github.com/konstructio/colony/scripts"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -167,31 +166,20 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
-			log.Info("Applying tink templates")
-			err = exec.CreateDirIfNotExist(filepath.Join(pwd, "templates"))
+			log.Info("Applying tinkerbell templates")
+			colonyTemplates, err := templates.Templates.ReadDir(".")
 			if err != nil {
-				return fmt.Errorf("error creating directory: %w", err)
+				return fmt.Errorf("error reading templates: %w", err)
 			}
+			var manifests []string
 
-			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
-			for _, template := range templates {
-
-				// TODO need to tag the repo and update this to leverage cli version
-				url := fmt.Sprintf("https://raw.githubusercontent.com/konstructio/colony/refs/heads/main/manifests/templates/%s", template)
-				filename := filepath.Join(pwd, "templates", template)
-
-				log.Infof("downloading template from %q into %q", url, filename)
-				err := download.FileFromURL(url, filename)
+			for _, file := range colonyTemplates {
+				content, err := templates.Templates.ReadFile(file.Name())
 				if err != nil {
-					return fmt.Errorf("error downloading file: %w", err)
+					return fmt.Errorf("error reading templates file: %w", err)
 				}
+				manifests = append(manifests, string(content))
 
-				log.Info("downloaded:", filename)
-			}
-
-			manifests, err := exec.ReadFilesInDir(filepath.Join(pwd, "templates"))
-			if err != nil {
-				return fmt.Errorf("error reading files directory: %w", err)
 			}
 
 			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
