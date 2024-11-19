@@ -61,12 +61,17 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating container: %w", err)
 			}
 
-			// TODO hack, the kube api is not always ready need to figure out a better condition
-			time.Sleep(time.Second * 7)
-
 			k8sClient, err := k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
+			}
+
+			if err := k8sClient.WaitForKubernetesAPIHealthy(ctx, 5*time.Minute); err != nil {
+				return fmt.Errorf("error waiting for kubernetes api to be healthy: %w", err)
+			}
+
+			if err := k8sClient.LoadMappingsFromKubernetes(); err != nil {
+				return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
 			}
 
 			if err := k8sClient.FetchAndWaitForDeployments(ctx, k8s.DeploymentDetails{

@@ -56,26 +56,29 @@ func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 		return nil, fmt.Errorf("error creating dynamic client: %w", err)
 	}
 
-	discovery, err := discovery.NewDiscoveryClientForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("error creating discovery client: %w", err)
-	}
-
-	groupResources, err := restmapper.GetAPIGroupResources(discovery)
-	if err != nil {
-		return nil, fmt.Errorf("error getting API group resources: %w", err)
-	}
-
-	restmapper := restmapper.NewDiscoveryRESTMapper(groupResources)
-
 	return &Client{
 		clientSet:  clientset,
 		dynamic:    dynamic,
-		restmapper: restmapper,
 		config:     config,
 		SecretName: "colony-api",
 		logger:     logger,
 	}, nil
+}
+
+func (c *Client) LoadMappingsFromKubernetes() error {
+	discovery, err := discovery.NewDiscoveryClientForConfig(c.config)
+	if err != nil {
+		return fmt.Errorf("error creating discovery client: %w", err)
+	}
+
+	groupResources, err := restmapper.GetAPIGroupResources(discovery)
+	if err != nil {
+		return fmt.Errorf("error getting API group resources: %w", err)
+	}
+
+	c.restmapper = restmapper.NewDiscoveryRESTMapper(groupResources)
+
+	return nil
 }
 
 func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
@@ -421,4 +424,27 @@ func BuildConfigMap(name, script string) (*corev1.ConfigMap, error) {
 	}
 
 	return cm, nil
+}
+
+// WaitForKubernetesAPIHealthy waits for the Kubernetes API to be healthy
+// by checking the server version every 5 seconds or until the timeout is reached.
+func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.Duration) error {
+	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		_, err := c.clientSet.Discovery().ServerVersion()
+		if err != nil {
+			if isNetworkingError(err) {
+				c.logger.Warn("connection to kube-apiserver error, retrying: %s", err)
+				return false, nil
+			}
+
+			return false, fmt.Errorf("error getting server version: %w", err)
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("error waiting for Kubernetes API to be healthy: %w", err)
+	}
+
+	return nil
 }
