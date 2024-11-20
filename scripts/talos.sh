@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# This script is designed to download specific Talos files required for an IPXE script to work.
+set -euxo pipefail
+if ! which wget &>/dev/null; then
+  apk add --update wget
+fi
+base_url=$1
+output_dir=$2
+files=("initramfs-amd64.xz" "vmlinuz-amd64")
+for file in "${files[@]}"; do
+  wget "${base_url}/${file}" -O "${output_dir}/${file}"
+done

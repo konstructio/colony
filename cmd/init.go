@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,15 +11,21 @@ import (
 	"github.com/konstructio/colony/internal/colony"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/docker"
-	"github.com/konstructio/colony/internal/download"
 	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
+	"github.com/konstructio/colony/manifests"
 	"github.com/spf13/cobra"
-	v1 "k8s.io/api/core/v1"
+
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type ColonyTokens struct {
+	LoadBalancerIP        string
+	LoadBalancerInterface string
+}
 
 func getInitCommand() *cobra.Command {
 	var apiKey, apiURL, loadBalancerIP, loadBalancerInterface string
@@ -43,51 +50,76 @@ func getInitCommand() *cobra.Command {
 
 			log.Info("colony api key provided is valid")
 
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("error getting user home directory: %w", err)
+			}
+
+			err = exec.CreateDirIfNotExist(filepath.Join(homeDir, constants.ColonyDir, "k3s-bootstrap"))
+			if err != nil {
+				return fmt.Errorf("error creating directory templates: %w", err)
+			}
+
+			colonyYamlTmpl, err := manifests.Colony.ReadFile(fmt.Sprintf("colony/%s.tmpl", constants.ColonyYamlPath))
+			if err != nil {
+				return fmt.Errorf("error reading templates file: %w", err)
+			}
+
+			tmpl, err := template.New("colony").Parse(string(colonyYamlTmpl))
+			if err != nil {
+				return fmt.Errorf("error parsing template: %w", err)
+			}
+
+			colonyK3sBootstrapPath := filepath.Join(homeDir, constants.ColonyDir, "k3s-bootstrap", constants.ColonyYamlPath)
+			colonyKubeconfigPath := filepath.Join(homeDir, constants.ColonyDir, constants.KubeconfigHostPath)
+
+			outputFile, err := os.Create(colonyK3sBootstrapPath)
+			if err != nil {
+				return fmt.Errorf("error creating output file: %w", err)
+			}
+			defer outputFile.Close()
+
+			err = tmpl.Execute(outputFile, &ColonyTokens{
+				LoadBalancerIP:        loadBalancerIP,
+				LoadBalancerInterface: loadBalancerInterface,
+			})
+			if err != nil {
+				return fmt.Errorf("error executing template: %w", err)
+			}
+
 			dockerCLI, err := docker.New(log)
 			if err != nil {
 				return fmt.Errorf("error creating docker client: %w", err)
 			}
 			defer dockerCLI.Close()
 
-			pwd, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("error getting current working directory: %w", err)
-			}
-
-			err = dockerCLI.CreateColonyK3sContainer(ctx, loadBalancerIP, loadBalancerInterface, pwd)
+			err = dockerCLI.CreateColonyK3sContainer(ctx, colonyK3sBootstrapPath, colonyKubeconfigPath, homeDir)
 			if err != nil {
 				return fmt.Errorf("error creating container: %w", err)
 			}
 
-			// TODO hack, the kube api is not always ready need to figure out a better condition
-			time.Sleep(time.Second * 7)
-
-			k8sClient, err := k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
+			k8sClient, err := k8s.New(log, colonyKubeconfigPath)
 			if err != nil {
 				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
-			coreDNSDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"kubernetes.io/name",
-				"CoreDNS",
-				"kube-system",
-				50,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding coredns deployment: %w", err)
+			if err := k8sClient.WaitForKubernetesAPIHealthy(ctx, 5*time.Minute); err != nil {
+				return fmt.Errorf("error waiting for kubernetes api to be healthy: %w", err)
 			}
 
-			_, err = k8sClient.WaitForDeploymentReady(ctx, coreDNSDeployment, 120)
-			if err != nil {
+			if err := k8sClient.FetchAndWaitForDeployments(ctx, k8s.DeploymentDetails{
+				Label:     "kubernetes.io/name",
+				Value:     "CoreDNS",
+				Namespace: "kube-system",
+			}); err != nil {
 				return fmt.Errorf("error waiting for coredns deployment: %w", err)
 			}
 
 			// Create the secret
-			apiKeySecret := &v1.Secret{
+			apiKeySecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "colony-api",
-					Namespace: "tink-system",
+					Name:      constants.ColonyAPISecretName,
+					Namespace: constants.ColonyNamespace,
 				},
 				Data: map[string][]byte{
 					"api-key": []byte(apiKey),
@@ -99,15 +131,15 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
 
-			k8sconfig, err := os.ReadFile(constants.KubeconfigHostPath)
+			k8sconfig, err := os.ReadFile(colonyKubeconfigPath)
 			if err != nil {
 				return fmt.Errorf("error reading file: %w", err)
 			}
 
-			mgmtKubeConfigSecret := &v1.Secret{
+			mgmtKubeConfigSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "mgmt-kubeconfig",
-					Namespace: "tink-system",
+					Namespace: constants.ColonyNamespace,
 				},
 				Data: map[string][]byte{
 					"kubeconfig": k8sconfig,
@@ -119,149 +151,91 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error creating secret: %w", err)
 			}
 
-			metricsServerDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"k8s-app",
-				"metrics-server",
-				"kube-system",
-				50,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding metrics-server deployment: %w", err)
+			deploymentsToWaitFor := []k8s.DeploymentDetails{
+				{
+					Label:     "k8s-app",
+					Value:     "metrics-server",
+					Namespace: "kube-system",
+				},
+				{
+					Label:     "app.kubernetes.io/name",
+					Value:     "colony-agent",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "hegel",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "rufio",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "smee",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:     "app",
+					Value:     "tink-server",
+					Namespace: constants.ColonyNamespace,
+				},
+				{
+					Label:       "app",
+					Value:       "tink-controller",
+					Namespace:   constants.ColonyNamespace,
+					ReadTimeout: 180,
+					WaitTimeout: 120,
+				},
 			}
 
-			_, err = k8sClient.WaitForDeploymentReady(ctx, metricsServerDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for metrics server deployment: %w", err)
+			if err := k8sClient.FetchAndWaitForDeployments(ctx, deploymentsToWaitFor...); err != nil {
+				return fmt.Errorf("error waiting for deployment: %w", err)
 			}
 
-			colonyAgentDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app.kubernetes.io/name",
-				"colony-agent",
-				"tink-system",
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding colony-agent deployment: %w", err)
+			if err := k8sClient.LoadMappingsFromKubernetes(); err != nil {
+				return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
 			}
 
-			_, err = k8sClient.WaitForDeploymentReady(ctx, colonyAgentDeployment, 120)
+			log.Info("applying tinkerbell templates")
+			colonyTemplates, err := manifests.Templates.ReadDir("templates")
 			if err != nil {
-				return fmt.Errorf("error waiting for colony agent deployment: %w", err)
+				return fmt.Errorf("error reading templates: %w", err)
 			}
+			var manifestsFiles []string
 
-			hegelDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"hegel",
-				"tink-system",
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding hegel deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, hegelDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for hegel deployment: %w", err)
-			}
-
-			rufioDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"rufio",
-				"tink-system",
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding rufio deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, rufioDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for rufio deployment: %w", err)
-			}
-
-			smeeDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"smee",
-				"tink-system",
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding smee deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, smeeDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for smee deployment: %w", err)
-			}
-
-			tinkServerDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"tink-server",
-				"tink-system",
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding tink-server deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, tinkServerDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for tink server deployment: %w", err)
-			}
-
-			tinkControllerDeployment, err := k8sClient.ReturnDeploymentObject(
-				ctx,
-				"app",
-				"tink-controller",
-				"tink-system",
-				180,
-			)
-			if err != nil {
-				return fmt.Errorf("error finding tink-controller deployment: %w", err)
-			}
-
-			_, err = k8sClient.WaitForDeploymentReady(ctx, tinkControllerDeployment, 120)
-			if err != nil {
-				return fmt.Errorf("error waiting for tink controller deployment: %w", err)
-			}
-
-			k8sClient, err = k8s.New(log, filepath.Join(pwd, constants.KubeconfigHostPath))
-			if err != nil {
-				return fmt.Errorf("error creating Kubernetes client: %w", err)
-			}
-
-			log.Info("Applying tink templates")
-			err = exec.CreateDirIfNotExist(filepath.Join(pwd, "templates"))
-			if err != nil {
-				return fmt.Errorf("error creating directory: %w", err)
-			}
-
-			templates := []string{"ubuntu-focal-k3s-server.yaml", "ubuntu-focal.yaml", "discovery.yaml", "reboot.yaml", "ubuntu-focal-k3s-join.yaml"}
-			for _, template := range templates {
-				url := fmt.Sprintf("https://raw.githubusercontent.com/jarededwards/k3s-datacenter/refs/heads/main/templates/%s", template)
-				filename := filepath.Join(pwd, "templates", template)
-
-				log.Infof("downloading template from %q into %q", url, filename)
-				err := download.FileFromURL(url, filename)
+			for _, file := range colonyTemplates {
+				content, err := manifests.Templates.ReadFile(filepath.Join("templates", file.Name()))
 				if err != nil {
-					return fmt.Errorf("error downloading file: %w", err)
+					return fmt.Errorf("error reading templates file: %w", err)
 				}
-
-				log.Info("downloaded:", filename)
+				manifestsFiles = append(manifestsFiles, string(content))
 			}
 
-			manifests, err := exec.ReadFilesInDir(filepath.Join(pwd, "templates"))
+			if err := k8sClient.ApplyManifests(ctx, manifestsFiles); err != nil {
+				return fmt.Errorf("error applying templates: %w", err)
+			}
+
+			log.Info("downloading operating systems for hook")
+
+			downloadTemplates, err := manifests.Downloads.ReadDir("downloads")
 			if err != nil {
-				return fmt.Errorf("error reading files directory: %w", err)
+				return fmt.Errorf("error reading templates: %w", err)
 			}
 
-			if err := k8sClient.ApplyManifests(ctx, manifests); err != nil {
+			var downloadFiles []string
+
+			for _, file := range downloadTemplates {
+				content, err := manifests.Downloads.ReadFile(filepath.Join("downloads", file.Name()))
+				if err != nil {
+					return fmt.Errorf("error reading templates file: %w", err)
+				}
+				downloadFiles = append(downloadFiles, string(content))
+			}
+
+			if err := k8sClient.ApplyManifests(ctx, downloadFiles); err != nil {
 				return fmt.Errorf("error applying templates: %w", err)
 			}
 
@@ -287,6 +261,7 @@ func getInitCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error patching ClusterRole: %w", err)
 			}
+			log.Info("colony init completed successfully")
 
 			return nil
 		},
@@ -298,7 +273,6 @@ func getInitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&loadBalancerIP, "load-balancer-ip", "", "the local network interface for colony to use")
 
 	cmd.MarkFlagRequired("api-key")
-	cmd.MarkFlagRequired("api-url")
 	cmd.MarkFlagRequired("load-balancer-interface")
 	cmd.MarkFlagRequired("load-balancer-ip")
 	return cmd

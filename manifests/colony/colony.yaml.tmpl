@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tink-system
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: colony
+  namespace: tink-system
+spec:
+  repo: https://charts.konstruct.io
+  chart: colony
+  targetNamespace: tink-system
+  version: 0.1.0
+  valuesContent: |-
+    colony-agent:
+      extraEnv:
+        COLONY_API_URL: https://colony-api-virtual.konstruct.io
+        LOAD_BALANCER: {{ .LoadBalancerIP }}
+        TALOS_URL_FILES_SOURCE: http://{{ .LoadBalancerIP }}:8080
+      extraEnvSecrets:
+        API_TOKEN:
+          key: api-key
+          name: colony-api
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: tink-stack
+  namespace: tink-system
+spec:
+  chart: oci://ghcr.io/tinkerbell/charts/stack
+  targetNamespace: tink-system
+  version: 0.4.4
+  valuesContent: |-
+    # 0.5.0 required for global.
+    # global:
+    #   # publicIP is used to set what both smee.publicIP and stack.loadBalancerIP do individually.
+    #   publicIP: {{ .LoadBalancerIP }}
+    hegel:
+      trustedProxies:
+      - 10.42.0.0/24
+    smee:
+      publicIP: {{ .LoadBalancerIP }}
+      image: public.ecr.aws/kubefirst/smee:9371956
+      trustedProxies:
+      - 10.42.0.0/24
+      tftp:
+        timeout: 120s
+      additionalArgs:
+        - -dhcp-auto-discovery=true
+        - -dhcp-mode=proxy
+    stack:
+      loadBalancerIP: {{ .LoadBalancerIP }}
+      kubevip:
+        interface: {{ .LoadBalancerInterface }}
+      relay:
+        sourceInterface: {{ .LoadBalancerInterface }}

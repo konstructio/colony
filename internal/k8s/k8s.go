@@ -8,10 +8,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/logger"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,34 +55,37 @@ func New(logger *logger.Logger, kubeConfig string) (*Client, error) {
 		return nil, fmt.Errorf("error creating dynamic client: %w", err)
 	}
 
-	discovery, err := discovery.NewDiscoveryClientForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("error creating discovery client: %w", err)
-	}
-
-	groupResources, err := restmapper.GetAPIGroupResources(discovery)
-	if err != nil {
-		return nil, fmt.Errorf("error getting API group resources: %w", err)
-	}
-
-	restmapper := restmapper.NewDiscoveryRESTMapper(groupResources)
-
 	return &Client{
 		clientSet:  clientset,
 		dynamic:    dynamic,
-		restmapper: restmapper,
 		config:     config,
-		SecretName: "colony-api",
+		SecretName: constants.ColonyAPISecretName,
 		logger:     logger,
 	}, nil
 }
 
+func (c *Client) LoadMappingsFromKubernetes() error {
+	discovery, err := discovery.NewDiscoveryClientForConfig(c.config)
+	if err != nil {
+		return fmt.Errorf("error creating discovery client: %w", err)
+	}
+
+	groupResources, err := restmapper.GetAPIGroupResources(discovery)
+	if err != nil {
+		return fmt.Errorf("error getting API group resources: %w", err)
+	}
+
+	c.restmapper = restmapper.NewDiscoveryRESTMapper(groupResources)
+
+	return nil
+}
+
 func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 	// Create the secret
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "colony-api",
-			Namespace: "tink-system",
+			Name:      constants.ColonyAPISecretName,
+			Namespace: constants.ColonyNamespace,
 		},
 		Data: map[string][]byte{
 			"api-key": []byte(apiKey),
@@ -94,7 +97,7 @@ func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	c.logger.Debugf("created Secret %q in Namespace %q", s.Name, s.Namespace)
+	c.logger.Infof("created Secret %q in Namespace %q", s.Name, s.Namespace)
 
 	return nil
 }
@@ -115,35 +118,13 @@ func (c *Client) PatchClusterRole(ctx context.Context, clusterRoleName string, c
 	return nil
 }
 
-func (c *Client) CreateSecret(ctx context.Context, secret *v1.Secret) error {
+func (c *Client) CreateSecret(ctx context.Context, secret *corev1.Secret) error {
 	s, err := c.clientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating secret: %w", err)
 	}
 
-	c.logger.Debugf("created Secret %q in Namespace %q", s.Name, s.Namespace)
-
-	return nil
-}
-
-func (c *Client) CreateConfigMap(ctx context.Context, configMap *v1.ConfigMap) error {
-	_, err := c.clientSet.CoreV1().ConfigMaps(configMap.GetNamespace()).Create(ctx, configMap, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("error creating ConfigMap: %w", err)
-	}
-
-	c.logger.Infof("ConfigMap %s created successfully in namespace %s", configMap.Name, configMap.Namespace)
-
-	return nil
-}
-
-func (c *Client) CreateJob(ctx context.Context, job *batchv1.Job) error {
-	job, err := c.clientSet.BatchV1().Jobs(job.GetNamespace()).Create(ctx, job, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("error creating Job: %w", err)
-	}
-
-	c.logger.Infof("job %s created successfully", job.Name)
+	c.logger.Infof("created Secret %q in Namespace %q", s.Name, s.Namespace)
 
 	return nil
 }
@@ -201,8 +182,54 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 	return nil
 }
 
-// WaitForDeploymentReady waits for a target Deployment to become ready
-func (c *Client) WaitForDeploymentReady(ctx context.Context, deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
+type DeploymentDetails struct {
+	Label       string
+	Value       string
+	Namespace   string
+	ReadTimeout int
+	WaitTimeout int
+}
+
+func (c *Client) FetchAndWaitForDeployments(ctx context.Context, deployments ...DeploymentDetails) error {
+	for _, deployment := range deployments {
+		var (
+			label       = deployment.Label
+			value       = deployment.Value
+			namespace   = deployment.Namespace
+			readTimeout = deployment.ReadTimeout
+			waitTimeout = deployment.WaitTimeout
+		)
+
+		if readTimeout == 0 {
+			readTimeout = 50
+		}
+
+		if waitTimeout == 0 {
+			waitTimeout = 120
+		}
+
+		c.logger.Infof("waiting for deployment with label %q=%q in namespace %q to be ready", label, value, namespace)
+
+		deployment, err := c.returnDeploymentObject(ctx, label, value, namespace, readTimeout)
+		if err != nil {
+			return fmt.Errorf("error finding deployment with labels %q: %w", fmt.Sprintf("%s=%s", label, value), err)
+		}
+
+		c.logger.Infof("deployment %q found in namespace %q", deployment.Name, deployment.Namespace)
+
+		_, err = c.waitForDeploymentReady(ctx, deployment, waitTimeout)
+		if err != nil {
+			return fmt.Errorf("error waiting for deployment %q: %w", deployment.Name, err)
+		}
+
+		c.logger.Infof("deployment %q in namespace %q is ready", deployment.Name, deployment.Namespace)
+	}
+
+	return nil
+}
+
+// waitForDeploymentReady waits for a target Deployment to become ready
+func (c *Client) waitForDeploymentReady(ctx context.Context, deployment *appsv1.Deployment, timeoutSeconds int) (bool, error) {
 	deploymentName := deployment.Name
 	namespace := deployment.Namespace
 
@@ -265,7 +292,7 @@ func isNetworkingError(err error) bool {
 	return false
 }
 
-func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, matchLabelValue string, namespace string, timeoutSeconds int) (*appsv1.Deployment, error) {
+func (c *Client) returnDeploymentObject(ctx context.Context, matchLabel string, matchLabelValue string, namespace string, timeoutSeconds int) (*appsv1.Deployment, error) {
 	var deployment *appsv1.Deployment
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
@@ -302,4 +329,31 @@ func (c *Client) ReturnDeploymentObject(ctx context.Context, matchLabel string, 
 		return nil, fmt.Errorf("error waiting for Deployment: %w", err)
 	}
 	return deployment, nil
+}
+
+// WaitForKubernetesAPIHealthy waits for the Kubernetes API to be healthy
+// by checking the server version every 5 seconds or until the timeout is reached.
+func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.Duration) error {
+	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(_ context.Context) (bool, error) {
+		_, err := c.clientSet.Discovery().ServerVersion()
+		if err != nil {
+			if isNetworkingError(err) {
+				c.logger.Warnf("connection to kube-apiserver error, retrying: %s", err)
+				return false, nil
+			}
+			if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) {
+				c.logger.Warnf("service unavailable or timeout error, retrying: %s", err)
+				return false, nil
+			}
+
+			return false, fmt.Errorf("error getting server version: %w", err)
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("error waiting for Kubernetes API to be healthy: %w", err)
+	}
+
+	return nil
 }
