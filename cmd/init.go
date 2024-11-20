@@ -107,10 +107,6 @@ func getInitCommand() *cobra.Command {
 				return fmt.Errorf("error waiting for kubernetes api to be healthy: %w", err)
 			}
 
-			if err := k8sClient.LoadMappingsFromKubernetes(); err != nil {
-				return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
-			}
-
 			if err := k8sClient.FetchAndWaitForDeployments(ctx, k8s.DeploymentDetails{
 				Label:     "kubernetes.io/name",
 				Value:     "CoreDNS",
@@ -197,11 +193,6 @@ func getInitCommand() *cobra.Command {
 
 			if err := k8sClient.FetchAndWaitForDeployments(ctx, deploymentsToWaitFor...); err != nil {
 				return fmt.Errorf("error waiting for deployment: %w", err)
-			}
-
-			k8sClient, err = k8s.New(log, colonyKubeconfigPath)
-			if err != nil {
-				return fmt.Errorf("error creating Kubernetes client: %w", err)
 			}
 
 			if err := k8sClient.LoadMappingsFromKubernetes(); err != nil {
