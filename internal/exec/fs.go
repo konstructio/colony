@@ -15,8 +15,8 @@ func CreateDirIfNotExist(dir string) error {
 }
 
 func DeleteDirectory(location string) error {
-	if err := os.RemoveAll(location); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("%q couldn't be deleted: %w", location, err)
+	if err := os.RemoveAll(location); err != nil {
+		return fmt.Errorf("failed to remove directory %q: %w", location, err)
 	}
 	return nil
 }
