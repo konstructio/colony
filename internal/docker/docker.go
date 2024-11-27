@@ -120,6 +120,7 @@ func (c *Client) CreateColonyK3sContainer(ctx context.Context, colonyK3sBootstra
 	env := []string{
 		fmt.Sprintf("K3S_KUBECONFIG_OUTPUT=%s", colonyKubeconfigPath),
 		"K3S_KUBECONFIG_MODE=666",
+		"K3S_TOKEN=thisismyssupersecrettoken",
 	}
 
 	mounts := []mount.Mount{
