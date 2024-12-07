@@ -87,22 +87,21 @@ func getAddIPMICommand() *cobra.Command {
 						return fmt.Errorf("error executing template: %w", err)
 					}
 				}
-
-				files, err := os.ReadDir(filepath.Join(homeDir, constants.ColonyDir, "ipmi"))
-				if err != nil {
-					return fmt.Errorf("failed to open directory: %w", err)
-				}
-
-				for _, file := range files {
-					content, err := os.ReadFile(filepath.Join(homeDir, constants.ColonyDir, "ipmi", file.Name()))
-					if err != nil {
-						return fmt.Errorf("failed to read file: %w", err)
-					}
-					templateFiles = append(templateFiles, string(content))
-				}
-				log.Info(templateFiles)
-
 			}
+
+			files, err := os.ReadDir(filepath.Join(homeDir, constants.ColonyDir, "ipmi"))
+			if err != nil {
+				return fmt.Errorf("failed to open directory: %w", err)
+			}
+
+			for _, file := range files {
+				content, err := os.ReadFile(filepath.Join(homeDir, constants.ColonyDir, "ipmi", file.Name()))
+				if err != nil {
+					return fmt.Errorf("failed to read file: %w", err)
+				}
+				templateFiles = append(templateFiles, string(content))
+			}
+
 			k8sClient, err := k8s.New(log, filepath.Join(homeDir, constants.ColonyDir, constants.KubeconfigHostPath))
 			if err != nil {
 				return fmt.Errorf("failed to create k8s client: %w", err)
