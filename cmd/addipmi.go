@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/exec"
@@ -65,9 +64,6 @@ func getAddIPMICommand() *cobra.Command {
 					}
 
 					tmpl, err := template.New("ipmi").Funcs(template.FuncMap{
-						"dotsToHyphens": func(s string) string {
-							return strings.ReplaceAll(s, ".", "-")
-						},
 						"base64Encode": func(s string) string {
 							return base64.StdEncoding.EncodeToString([]byte(s))
 						},
