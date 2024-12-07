@@ -106,6 +106,11 @@ func getAddIPMICommand() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to create k8s client: %w", err)
 				}
+
+				if err := k8sClient.LoadMappingsFromKubernetes(); err != nil {
+					return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
+				}
+
 				if err := k8sClient.ApplyManifests(ctx, templateFiles); err != nil {
 					return fmt.Errorf("error applying templates: %w", err)
 				}
