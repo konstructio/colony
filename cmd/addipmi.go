@@ -76,7 +76,7 @@ func getAddIPMICommand() *cobra.Command {
 						return fmt.Errorf("error parsing template: %w", err)
 					}
 
-					outputFile, err := os.Create(filepath.Join(homeDir, constants.ColonyDir, "ipmi", fmt.Sprintf("%s-%s.yaml", entry.HardwareID, t)))
+					outputFile, err := os.Create(filepath.Join(homeDir, constants.ColonyDir, "ipmi", fmt.Sprintf("%s-%s.yaml", strings.ReplaceAll(entry.IP, ".", "-"), t)))
 					if err != nil {
 						return fmt.Errorf("error creating output file: %w", err)
 					}
