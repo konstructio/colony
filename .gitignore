@@ -27,3 +27,4 @@ tmp/
 dist/
 .vscode
 vendor/
+*.csv

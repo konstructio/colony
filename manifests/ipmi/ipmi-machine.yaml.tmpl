@@ -1,0 +1,14 @@
+apiVersion: bmc.tinkerbell.org/v1alpha1
+kind: Machine
+metadata:
+  name: "{{ .IP | dotsToHyphens }}-ipmi-auth"
+  namespace: tink-system
+  labels:
+    colony.konstruct.io/hardware-id: "{{ .HardwareID }}"
+spec:
+  connection:
+    host: "{{ .IP }}"
+    authSecretRef:
+      name: "{{ .IP | dotsToHyphens }}-ipmi-auth"
+      namespace: tink-system
+    insecureTLS: {{ .InsecureTLS }}

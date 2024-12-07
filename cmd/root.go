@@ -14,6 +14,6 @@ func GetRootCommand() *cobra.Command {
 		SilenceErrors: true, // we print the errors ourselves on main
 	}
 
-	cmd.AddCommand(getDestroyCommand(), getInitCommand(), getVersionCommand())
+	cmd.AddCommand(getDestroyCommand(), getInitCommand(), getAddIPMICommand(), getVersionCommand())
 	return cmd
 }
