@@ -1,16 +1,22 @@
+//! if the user adds an ipmi object, we should be able to create
+//! the Secret and Machine object then trigger a reboot job that
+//!
+//!
+//!
+//!
+
 package cmd
 
 import (
+	"bytes"
 	"encoding/base64"
-	"encoding/csv"
 	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 
 	"github.com/konstructio/colony/internal/constants"
-	"github.com/konstructio/colony/internal/exec"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
 	"github.com/konstructio/colony/manifests"
@@ -18,16 +24,18 @@ import (
 )
 
 type IPMIAuth struct {
-	HardwareID  string
-	IP          string
-	Password    string
-	Username    string
-	InsecureTLS bool
+	HardwareID   string
+	IP           string
+	Password     string
+	Username     string
+	InsecureTLS  bool
+	AutoDiscover bool
 }
 
 func getAddIPMICommand() *cobra.Command {
-	var ipmiAuthFile string
-	var templateFiles []string
+	var ip, username, password string
+	var autoDiscover, insecureTLS bool
+	var templates []string
 
 	getAddIPMICmd := &cobra.Command{
 		Use:   "add-ipmi",
@@ -37,65 +45,46 @@ func getAddIPMICommand() *cobra.Command {
 
 			ctx := cmd.Context()
 
+			log.Info("add-ipmi")
+
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
 				return fmt.Errorf("error getting user home directory: %w", err)
 			}
 
-			err = exec.CreateDirIfNotExist(filepath.Join(homeDir, constants.ColonyDir, "ipmi"))
-			if err != nil {
-				return fmt.Errorf("error creating directory templates: %w", err)
-			}
-
-			ipmiEntries, err := parseCSV(ipmiAuthFile)
-			if err != nil {
-				return fmt.Errorf("failed to parse csv: %w", err)
-			}
-
 			fileTypes := []string{"machine", "secret"}
 
-			for _, entry := range ipmiEntries {
-				log.Infof("found entry for host ip: %q\n", entry.IP)
-
-				for _, t := range fileTypes {
-					file, err := manifests.IPMI.ReadFile(fmt.Sprintf("ipmi/ipmi-%s.yaml.tmpl", t))
-					if err != nil {
-						return fmt.Errorf("error reading templates file: %w", err)
-					}
-
-					tmpl, err := template.New("ipmi").Funcs(template.FuncMap{
-						"base64Encode": func(s string) string {
-							return base64.StdEncoding.EncodeToString([]byte(s))
-						},
-					}).Parse(string(file))
-					if err != nil {
-						return fmt.Errorf("error parsing template: %w", err)
-					}
-
-					outputFile, err := os.Create(filepath.Join(homeDir, constants.ColonyDir, "ipmi", fmt.Sprintf("%s-%s.yaml", entry.HardwareID, t)))
-					if err != nil {
-						return fmt.Errorf("error creating output file: %w", err)
-					}
-					defer outputFile.Close()
-
-					err = tmpl.Execute(outputFile, entry)
-					if err != nil {
-						return fmt.Errorf("error executing template: %w", err)
-					}
-				}
-			}
-
-			files, err := os.ReadDir(filepath.Join(homeDir, constants.ColonyDir, "ipmi"))
-			if err != nil {
-				return fmt.Errorf("failed to open directory: %w", err)
-			}
-
-			for _, file := range files {
-				content, err := os.ReadFile(filepath.Join(homeDir, constants.ColonyDir, "ipmi", file.Name()))
+			for _, t := range fileTypes {
+				file, err := manifests.IPMI.ReadFile(fmt.Sprintf("ipmi/ipmi-%s.yaml.tmpl", t))
 				if err != nil {
-					return fmt.Errorf("failed to read file: %w", err)
+					return fmt.Errorf("error reading templates file: %w", err)
 				}
-				templateFiles = append(templateFiles, string(content))
+
+				tmpl, err := template.New("ipmi").Funcs(template.FuncMap{
+					"base64Encode": func(s string) string {
+						return base64.StdEncoding.EncodeToString([]byte(s))
+					},
+					"replaceDotsWithDash": func(s string) string {
+						return strings.ReplaceAll(s, ".", "-")
+					},
+				}).Parse(string(file))
+				if err != nil {
+					return fmt.Errorf("error parsing template: %w", err)
+				}
+
+				var outputBuffer bytes.Buffer
+
+				err = tmpl.Execute(&outputBuffer, IPMIAuth{
+					IP:           ip,
+					Username:     username,
+					Password:     password,
+					InsecureTLS:  insecureTLS,
+					AutoDiscover: autoDiscover,
+				})
+				if err != nil {
+					return fmt.Errorf("error executing template: %w", err)
+				}
+				templates = append(templates, outputBuffer.String())
 			}
 
 			k8sClient, err := k8s.New(log, filepath.Join(homeDir, constants.ColonyDir, constants.KubeconfigHostPath))
@@ -107,45 +96,38 @@ func getAddIPMICommand() *cobra.Command {
 				return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
 			}
 
-			if err := k8sClient.ApplyManifests(ctx, templateFiles); err != nil {
+			if err := k8sClient.ApplyManifests(ctx, templates); err != nil {
 				return fmt.Errorf("error applying templates: %w", err)
 			}
+
+			err = k8sClient.FetchAndWaitForMachines(ctx, k8s.MachineDetails{
+				Name:        strings.ReplaceAll(ip, ".", "-"),
+				Namespace:   constants.ColonyNamespace,
+				WaitTimeout: 90,
+			})
+			if err != nil {
+				return fmt.Errorf("error get machine: %w", err)
+			}
+
+			log.Infof("machine is ready")
+
+			//! we need to create a Job that will reboot the machine
+			//! we need to watch for a hardware object to be created
+			//! stash the hardware object id in the secret for this ipmi
 
 			return nil
 		},
 	}
-	getAddIPMICmd.Flags().StringVar(&ipmiAuthFile, "ipmi-auth-file", "", "path to csv file containging IPMI auth data")
+	getAddIPMICmd.Flags().BoolVar(&autoDiscover, "auto-discover", false, "whether to auto-discover the machine note: this power cycles the machines")
+	getAddIPMICmd.Flags().BoolVar(&insecureTLS, "insecure", true, "the ipmi insecure tls")
+	getAddIPMICmd.Flags().StringVar(&ip, "ip", "", "the ipmi ip address")
+	getAddIPMICmd.Flags().StringVar(&password, "password", "", "the ipmi password")
+	getAddIPMICmd.Flags().StringVar(&username, "username", "admin", "the ipmi username")
 
-	getAddIPMICmd.MarkFlagRequired("ipmi-auth-file")
+	// getAddIPMICmd.MarkFlagRequired("hardware-id")
+	getAddIPMICmd.MarkFlagRequired("ip")
+	getAddIPMICmd.MarkFlagRequired("password")
+	getAddIPMICmd.MarkFlagRequired("username")
 
 	return getAddIPMICmd
-}
-
-func parseCSV(filename string) ([]IPMIAuth, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, err
-	}
-
-	var ipmiEntries []IPMIAuth
-	for _, record := range records {
-		enabled, _ := strconv.ParseBool(record[4])
-		entry := IPMIAuth{
-			HardwareID:  record[0],
-			IP:          record[1],
-			Username:    record[2],
-			Password:    record[3],
-			InsecureTLS: enabled,
-		}
-		ipmiEntries = append(ipmiEntries, entry)
-	}
-
-	return ipmiEntries, nil
 }

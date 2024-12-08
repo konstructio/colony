@@ -10,12 +10,15 @@ import (
 
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/logger"
+	rufiov1 "github.com/tinkerbell/rufio/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -80,6 +83,7 @@ func (c *Client) LoadMappingsFromKubernetes() error {
 	return nil
 }
 
+// ! deprecated
 func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 	// Create the secret
 	secret := &corev1.Secret{
@@ -354,6 +358,122 @@ func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.D
 	if err != nil {
 		return fmt.Errorf("error waiting for Kubernetes API to be healthy: %w", err)
 	}
+
+	return nil
+}
+
+func (c *Client) returnMachineObject(ctx context.Context, gvr schema.GroupVersionResource, matchLabel, matchLabelValue, namespace string, timeoutSeconds int) (*rufiov1.Machine, error) {
+
+	machine := &rufiov1.Machine{}
+
+	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
+		c.logger.Infof("getting machine object with label %q", fmt.Sprintf("%s=%s", matchLabel, matchLabelValue))
+		machines, err := c.dynamic.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("%s=%s", matchLabel, matchLabelValue),
+		})
+		if err != nil {
+			// if we couldn't connect, ask to try again
+			if isNetworkingError(err) {
+				return false, nil
+			}
+
+			// if we got an error, return it
+			return false, fmt.Errorf("error getting machine object %q in namespace %q: %w", "matchLabel", namespace, err)
+		}
+
+		// if we couldn't find any deployments, ask to try again
+		if len(machines.Items) == 0 {
+			return false, nil
+		}
+
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(machines.Items[0].UnstructuredContent(), machine)
+		if err != nil {
+			return false, fmt.Errorf("error converting unstructured to machine: %w", err)
+		}
+
+		// if we found a machine, return it
+		return true, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error waiting for Machine: %w", err)
+	}
+
+	return machine, nil
+}
+
+func (c *Client) waitForMachineReady(ctx context.Context, gvr schema.GroupVersionResource, machineObj *rufiov1.Machine, timeoutSeconds int) (bool, error) {
+	machineName := machineObj.Name
+	namespace := machineObj.Namespace
+
+	machine := &rufiov1.Machine{}
+	time.Sleep(time.Second * 3)
+
+	c.logger.Infof("waiting for machine %q in namespace %q to be ready - this could take up to %d seconds", machineName, namespace, timeoutSeconds)
+
+	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
+		// Get the latest Machine object
+		m, err := c.dynamic.Resource(gvr).Namespace(namespace).Get(context.Background(), machineName, metav1.GetOptions{})
+		if err != nil {
+			// If we couldn't connect, retry
+			if isNetworkingError(err) {
+				c.logger.Warn("connection error, retrying: %s", err)
+				return false, nil
+			}
+
+			return false, fmt.Errorf("error listing machines: %w", err)
+		}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(m.UnstructuredContent(), machine)
+		if err != nil {
+			return false, fmt.Errorf("error converting unstructured to machine: %w", err)
+		}
+
+		if len(machine.Status.Conditions) == 0 {
+			return false, nil
+		}
+
+		// Check the status and conditions of the machine
+		if machine.Status.Conditions[0].Status == "True" && machine.Status.Conditions[0].Type == rufiov1.Contactable {
+			return true, nil
+		}
+
+		// Machine is not yet ready, continue polling
+		return false, nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("the machine %q in namespace %q was not ready within the timeout period: %w", machineName, namespace, err)
+	}
+
+	return true, nil
+}
+
+type MachineDetails struct {
+	Name        string
+	Namespace   string
+	WaitTimeout int
+}
+
+func (c *Client) FetchAndWaitForMachines(ctx context.Context, machine MachineDetails) error {
+	c.logger.Infof("waiting for machine %q - in namespace %q", machine.Name, machine.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    rufiov1.GroupVersion.Group,
+		Version:  rufiov1.GroupVersion.Version,
+		Resource: "machines",
+	}
+
+	m, err := c.returnMachineObject(ctx, gvr, "colony.konstruct.io/name", machine.Name, machine.Namespace, machine.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error finding machine %q: %w", machine.Name, err)
+	}
+
+	c.logger.Infof("machine %q found in namespace %q", machine.Name, machine.Namespace)
+
+	_, err = c.waitForMachineReady(ctx, gvr, m, machine.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for machine %q: %w", machine.Name, err)
+	}
+
+	c.logger.Infof("machine %q in namespace %q is ready", machine.Name, machine.Namespace)
 
 	return nil
 }
