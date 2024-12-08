@@ -89,7 +89,7 @@ func (c *Client) waitForJobComplete(ctx context.Context, gvr schema.GroupVersion
 		}
 
 		// Check the status and conditions of the job
-		if job.Status.Conditions[0].Status == "True" && job.Status.Conditions[0].Type == rufiov1.JobCompleted {
+		if job.Status.Conditions[1].Status == "True" && job.Status.Conditions[1].Type == rufiov1.JobCompleted {
 			return true, nil
 		}
 
