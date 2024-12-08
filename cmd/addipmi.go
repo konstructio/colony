@@ -32,6 +32,11 @@ type IPMIAuth struct {
 	AutoDiscover bool
 }
 
+type RufioJobOffPXEOn struct {
+	RandomSuffix string
+	IP           string
+}
+
 func getAddIPMICommand() *cobra.Command {
 	var ip, username, password string
 	var autoDiscover, insecureTLS bool
@@ -92,9 +97,16 @@ func getAddIPMICommand() *cobra.Command {
 				return fmt.Errorf("failed to create k8s client: %w", err)
 			}
 
-			if err := k8sClient.LoadMappingsFromKubernetes(); err != nil {
+			if err = k8sClient.LoadMappingsFromKubernetes(); err != nil {
 				return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
 			}
+
+			// Run the informer
+			go func() {
+				if err := k8sClient.HardwareInformer(ctx, ip); err != nil {
+					log.Infof("error watching hardware creation: %w", err)
+				}
+			}()
 
 			if err := k8sClient.ApplyManifests(ctx, templates); err != nil {
 				return fmt.Errorf("error applying templates: %w", err)
@@ -111,9 +123,44 @@ func getAddIPMICommand() *cobra.Command {
 
 			log.Infof("machine is ready")
 
-			//! we need to create a Job that will reboot the machine
-			//! we need to watch for a hardware object to be created
-			//! stash the hardware object id in the secret for this ipmi
+			if autoDiscover {
+
+				file, err := manifests.IPMI.ReadFile("ipmi/ipmi-off-pxe-on.yaml.tmpl")
+				if err != nil {
+					return fmt.Errorf("error reading templates file: %w", err)
+				}
+
+				tmpl, err := template.New("ipmi").Funcs(template.FuncMap{
+					"replaceDotsWithDash": func(s string) string {
+						return strings.ReplaceAll(s, ".", "-")
+					},
+				}).Parse(string(file))
+				if err != nil {
+					return fmt.Errorf("error parsing template: %w", err)
+				}
+
+				var outputBuffer2 bytes.Buffer
+
+				err = tmpl.Execute(&outputBuffer2, RufioJobOffPXEOn{
+					IP: ip,
+				})
+				if err != nil {
+					return fmt.Errorf("error executing template: %w", err)
+				}
+
+				if err := k8sClient.ApplyManifests(ctx, []string{outputBuffer2.String()}); err != nil {
+					return fmt.Errorf("error applying rufiojob: %w", err)
+				}
+
+				err = k8sClient.FetchAndWaitForRufioJobs(ctx, k8s.JobDetails{
+					Name:        strings.ReplaceAll(ip, ".", "-"),
+					Namespace:   constants.ColonyNamespace,
+					WaitTimeout: 300,
+				})
+				if err != nil {
+					return fmt.Errorf("error get machine: %w", err)
+				}
+			}
 
 			return nil
 		},

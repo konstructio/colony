@@ -133,6 +133,29 @@ func (c *Client) CreateSecret(ctx context.Context, secret *corev1.Secret) error 
 	return nil
 }
 
+// todo do better
+func (c *Client) SecretAddLabel(ctx context.Context, name, namespace, labelName, labelValue string) error {
+
+	s, err := c.clientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("error getting secret: %w", err)
+	}
+
+	// Update the labels
+	if s.Labels == nil {
+		s.Labels = make(map[string]string)
+	}
+	s.Labels[labelName] = labelValue
+
+	// Update the secret
+	_, err = c.clientSet.CoreV1().Secrets(namespace).Update(ctx, s, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 	decoderUnstructured := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 
@@ -406,7 +429,6 @@ func (c *Client) waitForMachineReady(ctx context.Context, gvr schema.GroupVersio
 	namespace := machineObj.Namespace
 
 	machine := &rufiov1.Machine{}
-	time.Sleep(time.Second * 3)
 
 	c.logger.Infof("waiting for machine %q in namespace %q to be ready - this could take up to %d seconds", machineName, namespace, timeoutSeconds)
 
@@ -474,6 +496,39 @@ func (c *Client) FetchAndWaitForMachines(ctx context.Context, machine MachineDet
 	}
 
 	c.logger.Infof("machine %q in namespace %q is ready", machine.Name, machine.Namespace)
+
+	return nil
+}
+
+type JobDetails struct {
+	Name        string
+	Namespace   string
+	WaitTimeout int
+}
+
+// ! refactor... this is so dupe
+func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job JobDetails) error {
+	c.logger.Infof("waiting for job %q - in namespace %q", job.Name, job.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    rufiov1.GroupVersion.Group,
+		Version:  rufiov1.GroupVersion.Version,
+		Resource: "jobs",
+	}
+
+	m, err := c.returnRufioJobObject(ctx, gvr, "colony.konstruct.io/name", job.Name, job.Namespace, job.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error finding machine %q: %w", job.Name, err)
+	}
+
+	c.logger.Infof("machine %q found in namespace %q", job.Name, job.Namespace)
+
+	_, err = c.waitForJobComplete(ctx, gvr, m, job.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for machine %q: %w", job.Name, err)
+	}
+
+	c.logger.Infof("machine %q in namespace %q is ready", job.Name, job.Namespace)
 
 	return nil
 }
