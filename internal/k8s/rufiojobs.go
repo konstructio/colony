@@ -7,16 +7,16 @@ import (
 	"log"
 	"time"
 
-	rufiov1 "github.com/tinkerbell/rufio/api/v1alpha1"
+	rufiov1alpha1 "github.com/tinkerbell/rufio/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-func (c *Client) returnRufioJobObject(ctx context.Context, gvr schema.GroupVersionResource, matchLabel, matchLabelValue, namespace string, timeoutSeconds int) (*rufiov1.Job, error) {
+func (c *Client) returnRufioJobObject(ctx context.Context, gvr schema.GroupVersionResource, matchLabel, matchLabelValue, namespace string, timeoutSeconds int) (*rufiov1alpha1.Job, error) {
 
-	job := &rufiov1.Job{}
+	job := &rufiov1alpha1.Job{}
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
 		c.logger.Infof("getting job object with label %q", fmt.Sprintf("%s=%s", matchLabel, matchLabelValue))
@@ -53,11 +53,11 @@ func (c *Client) returnRufioJobObject(ctx context.Context, gvr schema.GroupVersi
 	return job, nil
 }
 
-func (c *Client) waitForJobComplete(ctx context.Context, gvr schema.GroupVersionResource, jobObj *rufiov1.Job, timeoutSeconds int) (bool, error) {
+func (c *Client) waitForJobComplete(ctx context.Context, gvr schema.GroupVersionResource, jobObj *rufiov1alpha1.Job, timeoutSeconds int) (bool, error) {
 	jobName := jobObj.Name
 	namespace := jobObj.Namespace
 
-	job := &rufiov1.Job{}
+	job := &rufiov1alpha1.Job{}
 
 	c.logger.Infof("waiting for job %q in namespace %q to be ready - this could take up to %d seconds", jobName, namespace, timeoutSeconds)
 
@@ -71,7 +71,7 @@ func (c *Client) waitForJobComplete(ctx context.Context, gvr schema.GroupVersion
 				return false, nil
 			}
 
-			return false, fmt.Errorf("error listing machines: %w", err)
+			return false, fmt.Errorf("error listing jobs: %w", err)
 		}
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(j.UnstructuredContent(), job)
 		if err != nil {
@@ -83,13 +83,14 @@ func (c *Client) waitForJobComplete(ctx context.Context, gvr schema.GroupVersion
 			log.Printf("Error marshaling: %v", err)
 		}
 
-		c.logger.Infof("debug: %+v", string(jsonData))
-		if len(job.Status.Conditions) > 1 {
+		c.logger.Infof("%+v", string(jsonData))
+
+		if len(job.Status.Conditions) == 0 {
 			return false, nil
 		}
 
-		// Check the status and conditions of the job
-		if job.Status.Conditions[1].Status == "True" && job.Status.Conditions[1].Type == rufiov1.JobCompleted {
+		lastCondition := job.Status.Conditions[len(job.Status.Conditions)-1]
+		if lastCondition.Status == "True" && lastCondition.Type == rufiov1alpha1.JobCompleted {
 			return true, nil
 		}
 

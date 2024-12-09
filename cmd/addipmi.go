@@ -1,10 +1,3 @@
-//! if the user adds an ipmi object, we should be able to create
-//! the Secret and Machine object then trigger a reboot job that
-//!
-//!
-//!
-//!
-
 package cmd
 
 import (
@@ -15,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	tinkv1alpha1 "github.com/kubefirst/tink/api/v1alpha1"
 
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/k8s"
@@ -50,7 +46,7 @@ func getAddIPMICommand() *cobra.Command {
 
 			ctx := cmd.Context()
 
-			log.Info("add-ipmi")
+			log.Infof("adding ipmi information for host %q - auto discovery %t", ip, autoDiscover)
 
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
@@ -101,10 +97,15 @@ func getAddIPMICommand() *cobra.Command {
 				return fmt.Errorf("error loading dynamic mappings from kubernetes: %w", err)
 			}
 
-			// Run the informer
+			// Create a channel to receive the hardware object
+			hardwareChan := make(chan *tinkv1alpha1.Hardware, 1)
+			errChan := make(chan error, 1)
+
 			go func() {
-				if err := k8sClient.HardwareInformer(ctx, ip); err != nil {
-					log.Infof("error watching hardware creation: %w", err)
+				log.Infof("starting informer for hardware creation")
+				err := k8sClient.HardwareInformer(ctx, ip, hardwareChan)
+				if err != nil {
+					errChan <- fmt.Errorf("error watching hardware creation: %w", err)
 				}
 			}()
 
@@ -157,9 +158,27 @@ func getAddIPMICommand() *cobra.Command {
 					Namespace:   constants.ColonyNamespace,
 					WaitTimeout: 300,
 				})
+
 				if err != nil {
 					return fmt.Errorf("error get machine: %w", err)
 				}
+				// Wait for hardware or error
+				select {
+				case hardware := <-hardwareChan:
+
+					log.Infof("added ipmi connectivity for %q", ip)
+					log.Infof("associated colony hardware id: %q", hardware.Name)
+
+				case err := <-errChan:
+					log.Errorf("Error: %v", err)
+
+				case <-ctx.Done():
+					log.Info("Context cancelled")
+
+				case <-time.After(5 * time.Minute):
+					log.Info("Timeout waiting for hardware creation")
+				}
+
 			}
 
 			return nil
