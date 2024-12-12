@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"syscall"
 	"time"
 
@@ -144,6 +145,27 @@ func (c *Client) WaitForSecretLabel(ctx context.Context, name, namespace string,
 	c.logger.Infof("created Secret %q in Namespace %q", name, namespace)
 
 	return nil
+}
+
+func (c *Client) GetHardwareMachineRefFromSecretLabel(ctx context.Context, namespace string, opts metav1.ListOptions) (string, error) {
+	s, err := c.clientSet.CoreV1().Secrets(namespace).List(ctx, opts)
+	if err != nil {
+		return "", fmt.Errorf("error finding secret: %w", err)
+	}
+
+	c.logger.Infof("looking for secret for hardware %q in namespace %q", strings.Split(opts.LabelSelector, "=")[1], namespace)
+
+	if len(s.Items) == 0 {
+		return "", errors.New("no secrets found")
+	}
+
+	if s.Items[0].Labels["colony.konstruct.io/name"] == "" {
+		return "", errors.New("no secrets found")
+	}
+
+	c.logger.Infof("found machine ref: %s", s.Items[0].Labels["colony.konstruct.io/name"])
+
+	return s.Items[0].Labels["colony.konstruct.io/name"], nil
 }
 
 // todo do better
@@ -513,15 +535,16 @@ func (c *Client) FetchAndWaitForMachines(ctx context.Context, machine MachineDet
 	return nil
 }
 
-type JobDetails struct {
-	Name        string
-	Namespace   string
-	WaitTimeout int
+type RufioJobWaitRequest struct {
+	LabelValue   string
+	Namespace    string
+	RandomSuffix string
+	WaitTimeout  int
 }
 
 // ! refactor... this is so dupe
-func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job JobDetails) error {
-	c.logger.Infof("waiting for job %q - in namespace %q", job.Name, job.Namespace)
+func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job RufioJobWaitRequest) error {
+	c.logger.Infof("waiting for job %q in namespace %q", job.RandomSuffix, job.Namespace)
 
 	gvr := schema.GroupVersionResource{
 		Group:    rufiov1alpha1.GroupVersion.Group,
@@ -529,19 +552,21 @@ func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job JobDetails) e
 		Resource: rufiov1alpha1.GroupVersion.WithResource("jobs").Resource,
 	}
 
-	m, err := c.returnRufioJobObject(ctx, gvr, "colony.konstruct.io/name", job.Name, job.Namespace, job.WaitTimeout)
+	j, err := c.returnRufioJobObject(ctx, gvr, job.Namespace, job.WaitTimeout, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("colony.konstruct.io/job-id=%s", job.RandomSuffix),
+	})
 	if err != nil {
-		return fmt.Errorf("error finding machine %q: %w", job.Name, err)
+		return fmt.Errorf("error finding job %q: %w", job.LabelValue, err)
 	}
 
-	c.logger.Infof("machine %q found in namespace %q", job.Name, job.Namespace)
+	c.logger.Infof("job %q found in namespace %q", job.LabelValue, job.Namespace)
 
-	_, err = c.waitForJobComplete(ctx, gvr, m, job.WaitTimeout)
+	_, err = c.waitForJobComplete(ctx, gvr, j, job.WaitTimeout)
 	if err != nil {
-		return fmt.Errorf("error waiting for machine %q: %w", job.Name, err)
+		return fmt.Errorf("error waiting for job %q: %w", job.LabelValue, err)
 	}
 
-	c.logger.Infof("machine %q in namespace %q is ready", job.Name, job.Namespace)
+	c.logger.Infof("job %q in namespace %q is ready", job.LabelValue, job.Namespace)
 
 	return nil
 }

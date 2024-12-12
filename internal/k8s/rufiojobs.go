@@ -14,15 +14,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-func (c *Client) returnRufioJobObject(ctx context.Context, gvr schema.GroupVersionResource, matchLabel, matchLabelValue, namespace string, timeoutSeconds int) (*rufiov1alpha1.Job, error) {
+func (c *Client) returnRufioJobObject(ctx context.Context, gvr schema.GroupVersionResource, namespace string, timeoutSeconds int, opts metav1.ListOptions) (*rufiov1alpha1.Job, error) {
 
 	job := &rufiov1alpha1.Job{}
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
-		c.logger.Infof("getting job object with label %q", fmt.Sprintf("%s=%s", matchLabel, matchLabelValue))
-		jobs, err := c.dynamic.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s=%s", matchLabel, matchLabelValue),
-		})
+		c.logger.Infof("getting job object with label %q", opts.LabelSelector)
+		jobs, err := c.dynamic.Resource(gvr).Namespace(namespace).List(ctx, opts)
 		if err != nil {
 			// if we couldn't connect, ask to try again
 			if isNetworkingError(err) {

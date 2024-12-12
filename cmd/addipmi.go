@@ -15,6 +15,7 @@ import (
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
+	"github.com/konstructio/colony/internal/utils"
 	"github.com/konstructio/colony/manifests"
 	"github.com/spf13/cobra"
 )
@@ -28,9 +29,11 @@ type IPMIAuth struct {
 	AutoDiscover bool
 }
 
-type RufioJobOffPXEOn struct {
-	RandomSuffix string
+type RufioPowerCycleRequest struct {
 	IP           string
+	BootDevice   string
+	EFIBoot      bool
+	RandomSuffix string
 }
 
 func getAddIPMICommand() *cobra.Command {
@@ -54,6 +57,7 @@ func getAddIPMICommand() *cobra.Command {
 			}
 
 			fileTypes := []string{"machine", "secret"}
+			randomSuffix := utils.RandomString(6)
 
 			for _, t := range fileTypes {
 				file, err := manifests.IPMI.ReadFile(fmt.Sprintf("ipmi/ipmi-%s.yaml.tmpl", t))
@@ -142,7 +146,7 @@ func getAddIPMICommand() *cobra.Command {
 
 				var outputBuffer2 bytes.Buffer
 
-				err = tmpl.Execute(&outputBuffer2, RufioJobOffPXEOn{
+				err = tmpl.Execute(&outputBuffer2, RufioPowerCycleRequest{
 					IP: ip,
 				})
 				if err != nil {
@@ -153,8 +157,8 @@ func getAddIPMICommand() *cobra.Command {
 					return fmt.Errorf("error applying rufiojob: %w", err)
 				}
 
-				err = k8sClient.FetchAndWaitForRufioJobs(ctx, k8s.JobDetails{
-					Name:        strings.ReplaceAll(ip, ".", "-"),
+				err = k8sClient.FetchAndWaitForRufioJobs(ctx, k8s.RufioJobWaitRequest{
+					LabelValue:  fmt.Sprintf("%s-off-pxe-on-%s", strings.ReplaceAll(ip, ".", "-"), randomSuffix),
 					Namespace:   constants.ColonyNamespace,
 					WaitTimeout: 300,
 				})
