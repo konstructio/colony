@@ -53,8 +53,6 @@ func getDeprovisionCommand() *cobra.Command {
 			log.Infof("efi boot %t", efiBoot)
 			log.Infof("destroy %t", destroy)
 
-			// TODO if the machine state is powered on, restart it so the workflow will run
-
 			// todo
 			//! POST to api to mark the hardware removed
 			// get hardware and remove ipxe
@@ -67,6 +65,47 @@ func getDeprovisionCommand() *cobra.Command {
 				return fmt.Errorf("error getting hardware: %w", err)
 			}
 			log.Infof("hardware: %v", hw)
+
+			ip, err := k8sClient.GetHardwareMachineRefFromSecretLabel(ctx, constants.ColonyNamespace, metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("colony.konstruct.io/hardware-id=%s", hardwareID),
+			})
+			if err != nil {
+				return fmt.Errorf("error getting machine ref secret: %w", err)
+			}
+
+			// TODO if the machine state is powered on, restart it so the workflow will run
+			// proactive reboot
+			file3, err := manifests.IPMI.ReadFile("ipmi/ipmi-off-pxe-on.yaml.tmpl")
+			if err != nil {
+				return fmt.Errorf("error reading templates file: %w", err)
+			}
+
+			tmpl3, err := template.New("ipmi").Funcs(template.FuncMap{
+				"replaceDotsWithDash": func(s string) string {
+					return strings.ReplaceAll(s, ".", "-")
+				},
+			}).Parse(string(file3))
+			if err != nil {
+				return fmt.Errorf("error parsing template: %w", err)
+			}
+
+			var outputBuffer3 bytes.Buffer
+
+			err = tmpl3.Execute(&outputBuffer3, RufioPowerCycleRequest{
+				IP:           ip,
+				EFIBoot:      efiBoot,
+				BootDevice:   bootDevice,
+				RandomSuffix: randomSuffix,
+			})
+			if err != nil {
+				return fmt.Errorf("error executing template: %w", err)
+			}
+
+			log.Info(outputBuffer3.String())
+
+			if err := k8sClient.ApplyManifests(ctx, []string{outputBuffer3.String()}); err != nil {
+				return fmt.Errorf("error applying rufiojob: %w", err)
+			}
 
 			//! detokenize and apply the workflow
 
@@ -95,13 +134,6 @@ func getDeprovisionCommand() *cobra.Command {
 			}
 
 			log.Info(outputBuffer.String())
-
-			ip, err := k8sClient.GetHardwareMachineRefFromSecretLabel(ctx, constants.ColonyNamespace, metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("colony.konstruct.io/hardware-id=%s", hardwareID),
-			})
-			if err != nil {
-				return fmt.Errorf("error getting machine ref secret: %w", err)
-			}
 
 			//! NOT UNTIL WE'RE SURE
 			if err := k8sClient.ApplyManifests(ctx, []string{outputBuffer.String()}); err != nil {
