@@ -10,6 +10,8 @@ import (
 
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/logger"
+	"github.com/konstructio/colony/internal/table"
+	"github.com/kubefirst/tink/api/v1alpha1"
 	rufiov1alpha1 "github.com/tinkerbell/rufio/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -541,5 +543,45 @@ func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job JobDetails) e
 
 	c.logger.Infof("machine %q in namespace %q is ready", job.Name, job.Namespace)
 
+	return nil
+}
+
+func (c *Client) ListAssets(ctx context.Context) error {
+	// Set up columns for hardware table
+	columns := []table.Column{
+		{Name: "name", Align: "left"},
+		{Name: "hostname", Align: "left"},
+		{Name: "ip", Align: "left"},
+		{Name: "mac", Align: "left"},
+		{Name: "status", Align: "left"},
+	}
+
+	printer := table.NewTablePrinter(columns)
+	gvr := schema.GroupVersionResource{
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
+		Resource: "hardware",
+	}
+
+	hardwares, err := c.dynamic.Resource(gvr).Namespace("tink-system").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("error listing hardwares: %w", err)
+	}
+	if len(hardwares.Items) == 0 {
+		return fmt.Errorf("no hardware found")
+	}
+
+	// Convert hardware objects to rows
+	var rows []map[string]string
+	for i, _ := range hardwares.Items {
+		h := &v1alpha1.Hardware{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(hardwares.Items[i].UnstructuredContent(), h)
+		if err != nil {
+			return fmt.Errorf("error converting unstructured to machine: %w", err)
+		}
+		rows = append(rows, table.HardwareToRow(h))
+	}
+
+	printer.PrintTable(rows)
 	return nil
 }
