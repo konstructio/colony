@@ -143,7 +143,7 @@ func getDeprovisionCommand() *cobra.Command {
 			err = k8sClient.FetchAndWaitForWorkflow(ctx, k8s.WorkflowWaitRequest{
 				LabelValue:   strings.ReplaceAll(ip, ".", "-"),
 				Namespace:    constants.ColonyNamespace,
-				WaitTimeout:  300,
+				WaitTimeout:  480,
 				RandomSuffix: randomSuffix,
 			})
 			if err != nil {
@@ -166,6 +166,8 @@ func getDeprovisionCommand() *cobra.Command {
 			}
 
 			var outputBuffer2 bytes.Buffer
+
+			randomSuffix = utils.RandomString(6)
 
 			err = tmpl2.Execute(&outputBuffer2, RufioPowerCycleRequest{
 				IP:           ip,
