@@ -61,7 +61,7 @@ func (c *Client) waitForJobComplete(ctx context.Context, gvr schema.GroupVersion
 
 	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
 		// Get the latest Machine object
-		j, err := c.dynamic.Resource(gvr).Namespace(namespace).Get(context.Background(), jobName, metav1.GetOptions{})
+		j, err := c.dynamic.Resource(gvr).Namespace(namespace).Get(ctx, jobName, metav1.GetOptions{})
 		if err != nil {
 			// If we couldn't connect, retry
 			if isNetworkingError(err) {

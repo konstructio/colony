@@ -469,7 +469,7 @@ func (c *Client) waitForMachineReady(ctx context.Context, gvr schema.GroupVersio
 
 	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
 		// Get the latest Machine object
-		m, err := c.dynamic.Resource(gvr).Namespace(namespace).Get(context.Background(), machineName, metav1.GetOptions{})
+		m, err := c.dynamic.Resource(gvr).Namespace(namespace).Get(ctx, machineName, metav1.GetOptions{})
 		if err != nil {
 			// If we couldn't connect, retry
 			if isNetworkingError(err) {
@@ -542,6 +542,13 @@ type RufioJobWaitRequest struct {
 	WaitTimeout  int
 }
 
+type WorkflowWaitRequest struct {
+	LabelValue   string
+	Namespace    string
+	RandomSuffix string
+	WaitTimeout  int
+}
+
 // ! refactor... this is so dupe
 func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job RufioJobWaitRequest) error {
 	c.logger.Infof("waiting for job %q in namespace %q", job.RandomSuffix, job.Namespace)
@@ -569,6 +576,85 @@ func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job RufioJobWaitR
 	c.logger.Infof("job %q in namespace %q is ready", job.LabelValue, job.Namespace)
 
 	return nil
+}
+
+func (c *Client) FetchAndWaitForWorkflow(ctx context.Context, workflow WorkflowWaitRequest) error {
+	c.logger.Infof("waiting for workflow %q in namespace %q", workflow.RandomSuffix, workflow.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
+		Resource: v1alpha1.GroupVersion.WithResource("workflows").Resource,
+	}
+
+	w, err := c.returnWorkflowObject(ctx, gvr, workflow.Namespace, workflow.WaitTimeout, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("colony.konstruct.io/job-id=%s", workflow.RandomSuffix),
+	})
+	if err != nil {
+		return fmt.Errorf("error finding job %q: %w", workflow.LabelValue, err)
+	}
+
+	c.logger.Infof("job %q found in namespace %q", workflow.LabelValue, workflow.Namespace)
+
+	_, err = c.waitWorkflowComplete(ctx, gvr, w, workflow.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for job %q: %w", workflow.LabelValue, err)
+	}
+
+	c.logger.Infof("job %q in namespace %q is ready", workflow.LabelValue, workflow.Namespace)
+
+	return nil
+}
+
+type UpdateHardwareRequest struct {
+	HardwareID string
+	Namespace  string
+	RemoveIpXE bool
+}
+
+func (c *Client) HardwareRemoveIPXE(ctx context.Context, hardware UpdateHardwareRequest) (*v1alpha1.Hardware, error) {
+	c.logger.Infof("getting hardware %q in namespace %q", hardware.HardwareID, hardware.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
+		Resource: v1alpha1.GroupVersion.WithResource("hardware").Resource,
+	}
+
+	hw, err := c.dynamic.Resource(gvr).Namespace(hardware.Namespace).Get(ctx, hardware.HardwareID, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting hardware %q: %w", hardware.HardwareID, err)
+	}
+
+	h := &v1alpha1.Hardware{}
+
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(hw.UnstructuredContent(), h)
+	if err != nil {
+		return nil, fmt.Errorf("error converting unstructured to hardware: %w", err)
+	}
+
+	c.logger.Infof("hardware %q found, removing ipxe script ", hw.GetName())
+
+	h.Spec.Interfaces[0].Netboot.IPXE = &v1alpha1.IPXE{}
+
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(h)
+	if err != nil {
+		return nil, fmt.Errorf("error converting hardware to unstructured: %w", err)
+	}
+
+	obj, err := c.dynamic.Resource(gvr).Namespace(hardware.Namespace).Update(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error updating hardware %q: %w", hardware.HardwareID, err)
+	}
+
+	c.logger.Infof("removed ipxe script from hardware %q", obj.GetName())
+
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(hw.UnstructuredContent(), h)
+	if err != nil {
+		return nil, fmt.Errorf("error converting updated unstructured to hardware: %w", err)
+	}
+
+	return h, nil
 }
 
 func (c *Client) ListAssets(ctx context.Context) error {

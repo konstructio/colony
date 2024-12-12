@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/konstructio/colony/configs"
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/k8s"
 	"github.com/konstructio/colony/internal/logger"
@@ -28,7 +27,7 @@ func getRebootCommand() *cobra.Command {
 
 			ctx := cmd.Context()
 			log := logger.New(logger.Debug)
-			log.Info("colony cli version: ", configs.Version)
+
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
 				return fmt.Errorf("error getting user home directory: %w", err)
@@ -84,7 +83,7 @@ func getRebootCommand() *cobra.Command {
 			log.Info(outputBuffer.String())
 
 			if err := k8sClient.ApplyManifests(ctx, []string{outputBuffer.String()}); err != nil {
-				return fmt.Errorf("error applying rufiojob: %w", err)
+				return fmt.Errorf("error applying rufio job: %w", err)
 			}
 
 			err = k8sClient.FetchAndWaitForRufioJobs(ctx, k8s.RufioJobWaitRequest{
@@ -95,7 +94,7 @@ func getRebootCommand() *cobra.Command {
 			})
 
 			if err != nil {
-				return fmt.Errorf("error get machine: %w", err)
+				return fmt.Errorf("error get rufio job: %w", err)
 			}
 
 			return nil

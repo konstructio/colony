@@ -1,0 +1,19 @@
+apiVersion: "tinkerbell.org/v1alpha1"
+kind: Template
+metadata:
+  name: wipe-disks
+  namespace: tink-system
+spec:
+  data: |
+    version: "0.1"
+    name: wipe_disks
+    global_timeout: 1800
+    tasks:
+      - name: "wipe-disks"
+        worker: "{{.device_1}}"
+        actions:
+          - name: "wipe-disks"
+            image: ghcr.io/konstructio/tinkerbell-actions:wipe-disk7
+            timeout: 90
+            volumes:
+              - /var/run/docker.sock:/var/run/docker.sock
