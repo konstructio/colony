@@ -62,7 +62,7 @@ func getRebootCommand() *cobra.Command {
 				return fmt.Errorf("error parsing template: %w", err)
 			}
 
-			var outputBuffer2 bytes.Buffer
+			var outputBuffer bytes.Buffer
 
 			ip, err := k8sClient.GetHardwareMachineRefFromSecretLabel(ctx, constants.ColonyNamespace, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("colony.konstruct.io/hardware-id=%s", hardwareID),
@@ -71,7 +71,7 @@ func getRebootCommand() *cobra.Command {
 				return fmt.Errorf("error getting machine ref: %w", err)
 			}
 
-			err = tmpl.Execute(&outputBuffer2, RufioPowerCycleRequest{
+			err = tmpl.Execute(&outputBuffer, RufioPowerCycleRequest{
 				IP:           ip,
 				EFIBoot:      efiBoot,
 				BootDevice:   bootDevice,
@@ -81,9 +81,9 @@ func getRebootCommand() *cobra.Command {
 				return fmt.Errorf("error executing template: %w", err)
 			}
 
-			log.Info(outputBuffer2.String())
+			log.Info(outputBuffer.String())
 
-			if err := k8sClient.ApplyManifests(ctx, []string{outputBuffer2.String()}); err != nil {
+			if err := k8sClient.ApplyManifests(ctx, []string{outputBuffer.String()}); err != nil {
 				return fmt.Errorf("error applying rufiojob: %w", err)
 			}
 
