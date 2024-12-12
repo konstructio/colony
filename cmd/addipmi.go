@@ -147,7 +147,10 @@ func getAddIPMICommand() *cobra.Command {
 				var outputBuffer2 bytes.Buffer
 
 				err = tmpl.Execute(&outputBuffer2, RufioPowerCycleRequest{
-					IP: ip,
+					IP:           ip,
+					BootDevice:   "pxe",
+					EFIBoot:      true,
+					RandomSuffix: randomSuffix,
 				})
 				if err != nil {
 					return fmt.Errorf("error executing template: %w", err)
@@ -158,9 +161,10 @@ func getAddIPMICommand() *cobra.Command {
 				}
 
 				err = k8sClient.FetchAndWaitForRufioJobs(ctx, k8s.RufioJobWaitRequest{
-					LabelValue:  fmt.Sprintf("%s-off-pxe-on-%s", strings.ReplaceAll(ip, ".", "-"), randomSuffix),
-					Namespace:   constants.ColonyNamespace,
-					WaitTimeout: 300,
+					LabelValue:   fmt.Sprintf("%s-off-pxe-on-%s", strings.ReplaceAll(ip, ".", "-"), randomSuffix),
+					Namespace:    constants.ColonyNamespace,
+					WaitTimeout:  300,
+					RandomSuffix: randomSuffix,
 				})
 
 				if err != nil {
