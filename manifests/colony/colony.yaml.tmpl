@@ -19,6 +19,8 @@ spec:
         COLONY_API_URL: https://colony-api-virtual.konstruct.io
         LOAD_BALANCER: {{ .LoadBalancerIP }}
         TALOS_URL_FILES_SOURCE: http://{{ .LoadBalancerIP }}:8080
+        DATA_CENTER_ID: {{ .DataCenterID }}
+        AGENT_ID: {{ .AgentID }}
       extraEnvSecrets:
         API_TOKEN:
           key: api-key
