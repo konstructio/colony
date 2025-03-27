@@ -37,7 +37,7 @@ func New(baseURL, token string) *API {
 }
 
 type RegisterAgentRequest struct {
-	DataCenterID string `json:"dataCenterID"`
+	DataCenterID string `json:"datacenter_id"`
 }
 
 type RegisterAgentResponse struct {
@@ -58,27 +58,27 @@ func (a *API) RegisterAgent(ctx context.Context, dataCenterID string) (*Agent, e
 		return nil, fmt.Errorf("error marshalling register agent request: %w", err)
 	}
 
-	registerAgentEndpoint := fmt.Sprintf("%s/api/v1/agents", a.baseURL)
+	registerAgentEndpoint := fmt.Sprintf("%s/api/v1/agents/", a.baseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerAgentEndpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Authorization", "Bearer "+a.token)
 
 	res, err := a.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %w", err)
 	}
+
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusConflict {
 		return nil, ErrDataCenterAlreadyRegistered
 	}
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusCreated {
 		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 
@@ -105,6 +105,7 @@ func (a *API) Heartbeat(ctx context.Context, agentID string) error {
 	}
 
 	heartbeatEndpoint := fmt.Sprintf("%s/api/v1/agents/%s/heartbeat", a.baseURL, agentID)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, heartbeatEndpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
