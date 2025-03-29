@@ -38,6 +38,7 @@ func New(baseURL, token string) *API {
 
 type RegisterAgentRequest struct {
 	DataCenterID string `json:"datacenter_id"`
+	State        []byte `json:"state"`
 }
 
 type RegisterAgentResponse struct {
@@ -51,6 +52,7 @@ type Agent struct {
 func (a *API) RegisterAgent(ctx context.Context, dataCenterID string) (*Agent, error) {
 	registerAgentRequest := RegisterAgentRequest{
 		DataCenterID: dataCenterID,
+		State:        []byte(`{"status": "initializing"}`),
 	}
 
 	body, err := json.Marshal(registerAgentRequest)
