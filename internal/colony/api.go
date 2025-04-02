@@ -60,7 +60,7 @@ func (a *API) RegisterAgent(ctx context.Context, dataCenterID string) (*Agent, e
 		return nil, fmt.Errorf("error marshalling register agent request: %w", err)
 	}
 
-	registerAgentEndpoint := fmt.Sprintf("%s/api/v1/agents/", a.baseURL)
+	registerAgentEndpoint := fmt.Sprintf("%s/api/v1/agents", a.baseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerAgentEndpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
@@ -123,7 +123,7 @@ func (a *API) Heartbeat(ctx context.Context, agentID string) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 

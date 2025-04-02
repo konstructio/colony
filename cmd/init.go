@@ -27,6 +27,7 @@ type ColonyTokens struct {
 	LoadBalancerInterface string
 	DataCenterID          string
 	AgentID               string
+	ColonyAPIURL          string
 }
 
 func getInitCommand() *cobra.Command {
@@ -97,6 +98,7 @@ func getInitCommand() *cobra.Command {
 				LoadBalancerInterface: loadBalancerInterface,
 				DataCenterID:          dataCenterID,
 				AgentID:               agentID,
+				ColonyAPIURL:          apiURL,
 			})
 			if err != nil {
 				return fmt.Errorf("error executing template: %w", err)
