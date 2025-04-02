@@ -37,8 +37,8 @@ func New(baseURL, token string) *API {
 }
 
 type RegisterAgentRequest struct {
-	DataCenterID string `json:"datacenter_id"`
-	State        []byte `json:"state"`
+	DataCenterID string          `json:"datacenter_id"`
+	State        json.RawMessage `json:"state"`
 }
 
 type RegisterAgentResponse struct {
@@ -52,7 +52,7 @@ type Agent struct {
 func (a *API) RegisterAgent(ctx context.Context, dataCenterID string) (*Agent, error) {
 	registerAgentRequest := RegisterAgentRequest{
 		DataCenterID: dataCenterID,
-		State:        []byte(`{"status": "initializing"}`),
+		State:        json.RawMessage(`{"status": "initializing"}`),
 	}
 
 	body, err := json.Marshal(registerAgentRequest)
@@ -93,12 +93,12 @@ func (a *API) RegisterAgent(ctx context.Context, dataCenterID string) (*Agent, e
 }
 
 type HeartbeatRequest struct {
-	State []byte `json:"state"`
+	State json.RawMessage `json:"state"`
 }
 
 func (a *API) Heartbeat(ctx context.Context, agentID string) error {
 	initialState := HeartbeatRequest{
-		State: []byte(`{"status": "initializing"}`),
+		State: json.RawMessage(`{"status": "initializing"}`),
 	}
 
 	body, err := json.Marshal(initialState)
