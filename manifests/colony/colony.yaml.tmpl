@@ -21,6 +21,7 @@ spec:
         TALOS_URL_FILES_SOURCE: http://{{ .LoadBalancerIP }}:8080
         DATA_CENTER_ID: {{ .DataCenterID }}
         AGENT_ID: {{ .AgentID }}
+        COLONY_API_URL: {{ .ColonyAPIURL }}
       extraEnvSecrets:
         API_TOKEN:
           key: api-key
