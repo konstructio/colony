@@ -1,0 +1,19 @@
+apiVersion: "tinkerbell.org/v1alpha1"
+kind: Template
+metadata:
+  name: hello-world
+  namespace: tink-system
+spec:
+  data: |
+    version: "0.1"
+    name: hello_world
+    global_timeout: 1800
+    tasks:
+      - name: "hello-world"
+        worker: "{{.device_1}}"
+        actions:
+          - name: "hello-world"
+            image: ghcr.io/konstructio/tinkerbell-actions:hello-world1
+            timeout: 90
+            volumes:
+              - /var/run/docker.sock:/var/run/docker.sock

@@ -1,0 +1,19 @@
+apiVersion: bmc.tinkerbell.org/v1alpha1
+kind: Job
+metadata:
+  name: "{{ .IP | replaceDotsWithDash }}-off-pxe-on-{{ .RandomSuffix }}"
+  namespace: tink-system
+  labels:
+    colony.konstruct.io/name: "{{ .IP | replaceDotsWithDash }}"
+    colony.konstruct.io/job-id: "{{ .RandomSuffix }}"
+spec:
+  machineRef:
+    name: "{{ .IP | replaceDotsWithDash }}"
+    namespace: tink-system
+  tasks:
+    - powerAction: "off"
+    - oneTimeBootDeviceAction:
+        device:
+          - "{{ .BootDevice }}"
+        efiBoot: {{ .EFIBoot }}
+    - powerAction: "on"

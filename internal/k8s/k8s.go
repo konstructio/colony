@@ -5,17 +5,23 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/konstructio/colony/internal/constants"
 	"github.com/konstructio/colony/internal/logger"
+	"github.com/konstructio/colony/internal/table"
+	"github.com/kubefirst/tink/api/v1alpha1"
+	rufiov1alpha1 "github.com/tinkerbell/rufio/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -80,6 +86,7 @@ func (c *Client) LoadMappingsFromKubernetes() error {
 	return nil
 }
 
+// ! deprecated
 func (c *Client) CreateAPIKeySecret(ctx context.Context, apiKey string) error {
 	// Create the secret
 	secret := &corev1.Secret{
@@ -129,6 +136,61 @@ func (c *Client) CreateSecret(ctx context.Context, secret *corev1.Secret) error 
 	return nil
 }
 
+func (c *Client) WaitForSecretLabel(ctx context.Context, name, namespace string, opts metav1.ListOptions) error {
+	_, err := c.clientSet.CoreV1().Secrets(namespace).List(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("error creating secret: %w", err)
+	}
+
+	c.logger.Infof("created Secret %q in Namespace %q", name, namespace)
+
+	return nil
+}
+
+func (c *Client) GetHardwareMachineRefFromSecretLabel(ctx context.Context, namespace string, opts metav1.ListOptions) (string, error) {
+	s, err := c.clientSet.CoreV1().Secrets(namespace).List(ctx, opts)
+	if err != nil {
+		return "", fmt.Errorf("error finding secret: %w", err)
+	}
+
+	c.logger.Infof("looking for secret for hardware %q in namespace %q", strings.Split(opts.LabelSelector, "=")[1], namespace)
+
+	if len(s.Items) == 0 {
+		return "", errors.New("no secrets found")
+	}
+
+	if s.Items[0].Labels["colony.konstruct.io/name"] == "" {
+		return "", errors.New("no secrets found")
+	}
+
+	c.logger.Infof("found machine ref: %s", s.Items[0].Labels["colony.konstruct.io/name"])
+
+	return s.Items[0].Labels["colony.konstruct.io/name"], nil
+}
+
+// todo do better
+func (c *Client) SecretAddLabel(ctx context.Context, name, namespace, labelName, labelValue string) error {
+
+	s, err := c.clientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("error getting secret: %w", err)
+	}
+
+	// Update the labels
+	if s.Labels == nil {
+		s.Labels = make(map[string]string)
+	}
+	s.Labels[labelName] = labelValue
+
+	// Update the secret
+	_, err = c.clientSet.CoreV1().Secrets(namespace).Update(ctx, s, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 	decoderUnstructured := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 
@@ -154,7 +216,7 @@ func (c *Client) ApplyManifests(ctx context.Context, manifests []string) error {
 		// Create the resource
 		_, err = c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Create(ctx, &obj, metav1.CreateOptions{})
 		if err != nil {
-			if k8sErrors.IsAlreadyExists(err) {
+			if k8serrors.IsAlreadyExists(err) {
 				retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					existingObj, getErr := c.dynamic.Resource(gvr).Namespace(obj.GetNamespace()).Get(ctx, obj.GetName(), metav1.GetOptions{})
 					if getErr != nil {
@@ -341,7 +403,7 @@ func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.D
 				c.logger.Warnf("connection to kube-apiserver error, retrying: %s", err)
 				return false, nil
 			}
-			if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) {
+			if k8serrors.IsServiceUnavailable(err) || k8serrors.IsTimeout(err) {
 				c.logger.Warnf("service unavailable or timeout error, retrying: %s", err)
 				return false, nil
 			}
@@ -355,5 +417,282 @@ func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.D
 		return fmt.Errorf("error waiting for Kubernetes API to be healthy: %w", err)
 	}
 
+	return nil
+}
+
+func (c *Client) returnMachineObject(ctx context.Context, gvr schema.GroupVersionResource, matchLabel, matchLabelValue, namespace string, timeoutSeconds int) (*rufiov1alpha1.Machine, error) {
+
+	machine := &rufiov1alpha1.Machine{}
+
+	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
+		c.logger.Infof("getting machine object with label %q", fmt.Sprintf("%s=%s", matchLabel, matchLabelValue))
+		machines, err := c.dynamic.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("%s=%s", matchLabel, matchLabelValue),
+		})
+		if err != nil {
+			// if we couldn't connect, ask to try again
+			if isNetworkingError(err) {
+				return false, nil
+			}
+
+			// if we got an error, return it
+			return false, fmt.Errorf("error getting machine object %q in namespace %q: %w", "matchLabel", namespace, err)
+		}
+
+		// if we couldn't find any deployments, ask to try again
+		if len(machines.Items) == 0 {
+			return false, nil
+		}
+
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(machines.Items[0].UnstructuredContent(), machine)
+		if err != nil {
+			return false, fmt.Errorf("error converting unstructured to machine: %w", err)
+		}
+
+		// if we found a machine, return it
+		return true, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error waiting for Machine: %w", err)
+	}
+
+	return machine, nil
+}
+
+func (c *Client) waitForMachineReady(ctx context.Context, gvr schema.GroupVersionResource, machineObj *rufiov1alpha1.Machine, timeoutSeconds int) (bool, error) {
+	machineName := machineObj.Name
+	namespace := machineObj.Namespace
+
+	machine := &rufiov1alpha1.Machine{}
+
+	c.logger.Infof("waiting for machine %q in namespace %q to be ready - this could take up to %d seconds", machineName, namespace, timeoutSeconds)
+
+	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
+		// Get the latest Machine object
+		m, err := c.dynamic.Resource(gvr).Namespace(namespace).Get(ctx, machineName, metav1.GetOptions{})
+		if err != nil {
+			// If we couldn't connect, retry
+			if isNetworkingError(err) {
+				c.logger.Warn("connection error, retrying: %s", err)
+				return false, nil
+			}
+
+			return false, fmt.Errorf("error listing machines: %w", err)
+		}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(m.UnstructuredContent(), machine)
+		if err != nil {
+			return false, fmt.Errorf("error converting unstructured to machine: %w", err)
+		}
+
+		if len(machine.Status.Conditions) == 0 {
+			return false, nil
+		}
+
+		// Check the status and conditions of the machine
+		if machine.Status.Conditions[0].Status == "True" && machine.Status.Conditions[0].Type == rufiov1alpha1.Contactable {
+			return true, nil
+		}
+
+		// Machine is not yet ready, continue polling
+		return false, nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("the machine %q in namespace %q was not ready within the timeout period: %w", machineName, namespace, err)
+	}
+
+	return true, nil
+}
+
+type MachineDetails struct {
+	Name        string
+	Namespace   string
+	WaitTimeout int
+}
+
+func (c *Client) FetchAndWaitForMachines(ctx context.Context, machine MachineDetails) error {
+	c.logger.Infof("waiting for machine %q - in namespace %q", machine.Name, machine.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    rufiov1alpha1.GroupVersion.Group,
+		Version:  rufiov1alpha1.GroupVersion.Version,
+		Resource: "machines",
+	}
+
+	m, err := c.returnMachineObject(ctx, gvr, "colony.konstruct.io/name", machine.Name, machine.Namespace, machine.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error finding machine %q: %w", machine.Name, err)
+	}
+
+	c.logger.Infof("machine %q found in namespace %q", machine.Name, machine.Namespace)
+
+	_, err = c.waitForMachineReady(ctx, gvr, m, machine.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for machine %q: %w", machine.Name, err)
+	}
+
+	c.logger.Infof("machine %q in namespace %q is ready", machine.Name, machine.Namespace)
+
+	return nil
+}
+
+type RufioJobWaitRequest struct {
+	LabelValue   string
+	Namespace    string
+	RandomSuffix string
+	WaitTimeout  int
+}
+
+type WorkflowWaitRequest struct {
+	LabelValue   string
+	Namespace    string
+	RandomSuffix string
+	WaitTimeout  int
+}
+
+// ! refactor... this is so dupe
+func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job RufioJobWaitRequest) error {
+	c.logger.Infof("waiting for job %q in namespace %q", job.RandomSuffix, job.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    rufiov1alpha1.GroupVersion.Group,
+		Version:  rufiov1alpha1.GroupVersion.Version,
+		Resource: rufiov1alpha1.GroupVersion.WithResource("jobs").Resource,
+	}
+
+	j, err := c.returnRufioJobObject(ctx, gvr, job.Namespace, job.WaitTimeout, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("colony.konstruct.io/job-id=%s", job.RandomSuffix),
+	})
+	if err != nil {
+		return fmt.Errorf("error finding job %q: %w", job.LabelValue, err)
+	}
+
+	c.logger.Infof("job %q found in namespace %q", job.LabelValue, job.Namespace)
+
+	_, err = c.waitForJobComplete(ctx, gvr, j, job.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for job %q: %w", job.LabelValue, err)
+	}
+
+	c.logger.Infof("job %q in namespace %q is ready", job.LabelValue, job.Namespace)
+
+	return nil
+}
+
+func (c *Client) FetchAndWaitForWorkflow(ctx context.Context, workflow WorkflowWaitRequest) error {
+	c.logger.Infof("waiting for workflow %q in namespace %q", workflow.RandomSuffix, workflow.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
+		Resource: v1alpha1.GroupVersion.WithResource("workflows").Resource,
+	}
+
+	w, err := c.returnWorkflowObject(ctx, gvr, workflow.Namespace, workflow.WaitTimeout, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("colony.konstruct.io/job-id=%s", workflow.RandomSuffix),
+	})
+	if err != nil {
+		return fmt.Errorf("error finding job %q: %w", workflow.LabelValue, err)
+	}
+
+	c.logger.Infof("job %q found in namespace %q", workflow.LabelValue, workflow.Namespace)
+
+	_, err = c.waitWorkflowComplete(ctx, gvr, w, workflow.WaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for job %q: %w", workflow.LabelValue, err)
+	}
+
+	c.logger.Infof("job %q in namespace %q is ready", workflow.LabelValue, workflow.Namespace)
+
+	return nil
+}
+
+type UpdateHardwareRequest struct {
+	HardwareID string
+	Namespace  string
+	RemoveIpXE bool
+}
+
+func (c *Client) HardwareRemoveIPXE(ctx context.Context, hardware UpdateHardwareRequest) (*v1alpha1.Hardware, error) {
+	c.logger.Infof("getting hardware %q in namespace %q", hardware.HardwareID, hardware.Namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
+		Resource: v1alpha1.GroupVersion.WithResource("hardware").Resource,
+	}
+
+	hw, err := c.dynamic.Resource(gvr).Namespace(hardware.Namespace).Get(ctx, hardware.HardwareID, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting hardware %q: %w", hardware.HardwareID, err)
+	}
+
+	h := &v1alpha1.Hardware{}
+
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(hw.UnstructuredContent(), h)
+	if err != nil {
+		return nil, fmt.Errorf("error converting unstructured to hardware: %w", err)
+	}
+
+	c.logger.Infof("hardware %q found, removing ipxe script ", hw.GetName())
+
+	h.Spec.Interfaces[0].Netboot.IPXE = &v1alpha1.IPXE{}
+
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(h)
+	if err != nil {
+		return nil, fmt.Errorf("error converting hardware to unstructured: %w", err)
+	}
+
+	obj, err := c.dynamic.Resource(gvr).Namespace(hardware.Namespace).Update(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error updating hardware %q: %w", hardware.HardwareID, err)
+	}
+
+	c.logger.Infof("removed ipxe script from hardware %q", obj.GetName())
+
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(hw.UnstructuredContent(), h)
+	if err != nil {
+		return nil, fmt.Errorf("error converting updated unstructured to hardware: %w", err)
+	}
+
+	return h, nil
+}
+
+func (c *Client) ListAssets(ctx context.Context) error {
+	// Set up columns for hardware table
+	columns := []table.Column{
+		{Name: "name", Align: "left"},
+		{Name: "hostname", Align: "left"},
+		{Name: "ip", Align: "left"},
+		{Name: "mac", Align: "left"},
+		{Name: "status", Align: "left"},
+	}
+
+	printer := table.NewTablePrinter(columns)
+	gvr := schema.GroupVersionResource{
+		Group:    v1alpha1.GroupVersion.Group,
+		Version:  v1alpha1.GroupVersion.Version,
+		Resource: "hardware",
+	}
+
+	hardwares, err := c.dynamic.Resource(gvr).Namespace("tink-system").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("error listing hardwares: %w", err)
+	}
+	if len(hardwares.Items) == 0 {
+		return fmt.Errorf("no hardware found")
+	}
+
+	// Convert hardware objects to rows
+	var rows []map[string]string
+	for i, _ := range hardwares.Items {
+		h := &v1alpha1.Hardware{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(hardwares.Items[i].UnstructuredContent(), h)
+		if err != nil {
+			return fmt.Errorf("error converting unstructured to machine: %w", err)
+		}
+		rows = append(rows, table.HardwareToRow(h))
+	}
+
+	printer.PrintTable(rows)
 	return nil
 }

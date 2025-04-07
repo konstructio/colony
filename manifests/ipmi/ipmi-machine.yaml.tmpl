@@ -1,0 +1,15 @@
+apiVersion: bmc.tinkerbell.org/v1alpha1
+kind: Machine
+metadata:
+  name: "{{ .IP | replaceDotsWithDash }}"
+  namespace: tink-system
+  labels:
+    colony.konstruct.io/ip: "{{ .IP }}"
+    colony.konstruct.io/name: "{{ .IP | replaceDotsWithDash }}"
+spec:
+  connection:
+    host: "{{ .IP }}"
+    authSecretRef:
+      name: "{{ .IP | replaceDotsWithDash }}"
+      namespace: tink-system
+    insecureTLS: {{ .InsecureTLS }}
