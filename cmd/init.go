@@ -25,10 +25,13 @@ import (
 type ColonyTokens struct {
 	LoadBalancerIP        string
 	LoadBalancerInterface string
+	DataCenterID          string
+	AgentID               string
+	ColonyAPIURL          string
 }
 
 func getInitCommand() *cobra.Command {
-	var apiKey, apiURL, loadBalancerIP, loadBalancerInterface string
+	var dataCenterID, apiKey, agentID, apiURL, loadBalancerIP, loadBalancerInterface string
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -44,11 +47,22 @@ func getInitCommand() *cobra.Command {
 			}
 
 			colonyAPI := colony.New(apiURL, apiKey)
-			if err := colonyAPI.ValidateAPIKey(ctx); err != nil {
-				return fmt.Errorf("error validating colony api key: %q %w \n visit https://colony.konstruct.io to get a valid api key", apiKey, err)
+			if agentID == "" {
+				agent, err := colonyAPI.RegisterAgent(ctx, dataCenterID)
+				if err != nil {
+					if err == colony.ErrDataCenterAlreadyRegistered {
+						return fmt.Errorf("data center %s already has an agent registered", dataCenterID)
+					}
+					return fmt.Errorf("error registering agent: %w", err)
+				}
+				agentID = agent.ID
 			}
 
-			log.Info("colony api key provided is valid")
+			if err := colonyAPI.Heartbeat(ctx, agentID); err != nil {
+				return fmt.Errorf("error sending heartbeat: %w", err)
+			}
+
+			log.Info("agent registered successfully")
 
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
@@ -82,6 +96,9 @@ func getInitCommand() *cobra.Command {
 			err = tmpl.Execute(outputFile, &ColonyTokens{
 				LoadBalancerIP:        loadBalancerIP,
 				LoadBalancerInterface: loadBalancerInterface,
+				DataCenterID:          dataCenterID,
+				AgentID:               agentID,
+				ColonyAPIURL:          apiURL,
 			})
 			if err != nil {
 				return fmt.Errorf("error executing template: %w", err)
@@ -268,11 +285,14 @@ func getInitCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "api key for interacting with colony cloud")
+	cmd.Flags().StringVar(&dataCenterID, "data-center-id", "", "data center id for interacting with colony cloud")
+	cmd.Flags().StringVar(&agentID, "agent-id", "", "agent id for interacting with colony cloud")
 	cmd.Flags().StringVar(&apiURL, "api-url", "https://colony-api-virtual.konstruct.io", "api url for interacting with colony cloud")
 	cmd.Flags().StringVar(&loadBalancerInterface, "load-balancer-interface", "", "the local network interface for colony to use")
 	cmd.Flags().StringVar(&loadBalancerIP, "load-balancer-ip", "", "the local network interface for colony to use")
 
 	cmd.MarkFlagRequired("api-key")
+	cmd.MarkFlagRequired("data-center-id")
 	cmd.MarkFlagRequired("load-balancer-interface")
 	cmd.MarkFlagRequired("load-balancer-ip")
 	return cmd
