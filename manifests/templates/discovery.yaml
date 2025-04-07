@@ -22,4 +22,4 @@ spec:
               COLONY_API_KEY: "{{.colony_token}}"
               CHROOT: y
               COLONY_API_URL: "{{.colony_api_url}}"
-              // TODO add COLONY_AGENT_ID
+              COLONY_AGENT_ID: "{{.colony_agent_id}}"
