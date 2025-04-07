@@ -1,6 +1,7 @@
 package colony
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -16,12 +17,7 @@ type API struct {
 	token   string
 }
 
-var errInvalidKey = errors.New("invalid Colony API key")
-
-const (
-	templateEndpoint = "/api/v1/templates/all/system"
-	validateEndpoint = "/api/v1/token/validate"
-)
+var ErrDataCenterAlreadyRegistered = errors.New("data center already has an agent registered")
 
 // New creates a new colony API client
 func New(baseURL, token string) *API {
@@ -40,8 +36,79 @@ func New(baseURL, token string) *API {
 	}
 }
 
-func (a *API) ValidateAPIKey(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+validateEndpoint, nil)
+type RegisterAgentRequest struct {
+	DataCenterID string          `json:"datacenter_id"`
+	State        json.RawMessage `json:"state"`
+}
+
+type RegisterAgentResponse struct {
+	Data Agent `json:"data"`
+}
+
+type Agent struct {
+	ID string `json:"id"`
+}
+
+func (a *API) RegisterAgent(ctx context.Context, dataCenterID string) (*Agent, error) {
+	registerAgentRequest := RegisterAgentRequest{
+		DataCenterID: dataCenterID,
+		State:        json.RawMessage(`{"status": "initializing"}`),
+	}
+
+	body, err := json.Marshal(registerAgentRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling register agent request: %w", err)
+	}
+
+	registerAgentEndpoint := fmt.Sprintf("%s/api/v1/agents", a.baseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registerAgentEndpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+a.token)
+
+	res, err := a.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %w", err)
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusConflict {
+		return nil, ErrDataCenterAlreadyRegistered
+	}
+
+	if res.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
+	}
+
+	var resp RegisterAgentResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	return &resp.Data, nil
+}
+
+type HeartbeatRequest struct {
+	State json.RawMessage `json:"state"`
+}
+
+func (a *API) Heartbeat(ctx context.Context, agentID string) error {
+	initialState := HeartbeatRequest{
+		State: json.RawMessage(`{"status": "initializing"}`),
+	}
+
+	body, err := json.Marshal(initialState)
+	if err != nil {
+		return fmt.Errorf("error marshalling initial state: %w", err)
+	}
+
+	heartbeatEndpoint := fmt.Sprintf("%s/api/v1/agents/%s/heartbeat", a.baseURL, agentID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, heartbeatEndpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
@@ -56,53 +123,9 @@ func (a *API) ValidateAPIKey(ctx context.Context) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 
-	var r struct {
-		IsValid bool `json:"isValid"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-		return fmt.Errorf("error decoding response: %w", err)
-	}
-
-	if !r.IsValid {
-		return errInvalidKey
-	}
-
 	return nil
-}
-
-type Template struct {
-	ID             string `json:"id" `
-	Name           string `json:"name"`
-	Label          string `json:"label"`
-	IsTinkTemplate bool   `json:"isTinkTemplate"`
-	IsSystem       bool   `json:"isSystem"`
-	Template       string `json:"template"`
-}
-
-func (a *API) GetSystemTemplates(ctx context.Context) ([]Template, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/api/v1/templates/all/system", nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %w", err)
-	}
-
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Authorization", "Bearer "+a.token)
-
-	res, err := a.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %w", err)
-	}
-	defer res.Body.Close()
-
-	var templates []Template
-	if err := json.NewDecoder(res.Body).Decode(&templates); err != nil {
-		return nil, fmt.Errorf("error decoding response: %w", err)
-	}
-
-	return templates, nil
 }
