@@ -21,4 +21,5 @@ spec:
               K1_COLONY_HARDWARE_ID: "{{.colony_hardware_id}}"
               CHROOT: y
               COLONY_API_URL: "{{.colony_api_url}}"
+              COLONY_API_KEY: "{{.colony_token}}"
               COLONY_AGENT_ID: "{{.colony_agent_id}}"
