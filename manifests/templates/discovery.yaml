@@ -17,6 +17,7 @@ spec:
           - name: "execute-discovery-script"
             image: ghcr.io/konstructio/colony-scout:v0.2.0-rc6
             timeout: 180
+            pid: host
             environment:
               K1_COLONY_HARDWARE_ID: "{{.colony_hardware_id}}"
               CHROOT: y
