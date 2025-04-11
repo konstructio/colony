@@ -12,11 +12,11 @@ spec:
   repo: https://charts.konstruct.io
   chart: colony
   targetNamespace: tink-system
-  version: 0.1.0
+  version: 0.2.0-rc1
   valuesContent: |-
     colony-agent:
       extraEnv:
-        COLONY_API_URL: https://colony-api-virtual.konstruct.io
+        COLONY_API_URL: https://colony-api.konstruct.io
         LOAD_BALANCER: {{ .LoadBalancerIP }}
         TALOS_URL_FILES_SOURCE: http://{{ .LoadBalancerIP }}:8080
         DATA_CENTER_ID: {{ .DataCenterID }}
