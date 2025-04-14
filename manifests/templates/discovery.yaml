@@ -15,7 +15,7 @@ spec:
           - /lib/firmware:/lib/firmware:ro
         actions:
           - name: "execute-discovery-script"
-            image: ghcr.io/konstructio/colony-scout:v0.2.0-rc6
+            image: ghcr.io/konstructio/colony-scout:v0.2.0
             timeout: 180
             pid: host
             environment:
