@@ -3,6 +3,7 @@ module github.com/konstructio/colony
 go 1.23.1
 
 require (
+	github.com/bmc-toolbox/bmclib/v2 v2.3.5-0.20241124181818-eb78b9e0a6f9
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/kubefirst/tink v0.0.0-20240414060520-9bdbb143c249
 	github.com/sirupsen/logrus v1.9.3
@@ -15,8 +16,13 @@ require (
 )
 
 require (
+	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
+	github.com/Jeffail/gabs/v2 v2.7.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/VictorLowther/simplexml v0.0.0-20180716164440-0bff93621230 // indirect
+	github.com/VictorLowther/soap v0.0.0-20150314151524-8e36fca84b22 // indirect
+	github.com/bmc-toolbox/common v0.0.0-20240806132831-ba8adc6a35e3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -24,6 +30,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
@@ -35,8 +42,12 @@ require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jacobweinstock/iamt v0.0.0-20230502042727-d7cdbe67d9ef // indirect
+	github.com/jacobweinstock/registrar v0.4.7 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -50,8 +61,9 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tinkerbell/tink v0.12.1 // indirect
+	github.com/stmcginnis/gofish v0.19.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0 // indirect
 	go.opentelemetry.io/otel v1.31.0 // indirect

@@ -6,6 +6,7 @@ metadata:
   labels:
     colony.konstruct.io/ip: "{{ .IP }}"
     colony.konstruct.io/name: "{{ .IP | replaceDotsWithDash }}"
+    colony.konstruct.io/board-serial: "{{ .BoardSerial }}"
 spec:
   connection:
     host: "{{ .IP }}"
