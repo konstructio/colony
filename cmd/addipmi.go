@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"html/template"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmc-toolbox/bmclib/v2"
 	tinkv1alpha1 "github.com/kubefirst/tink/api/v1alpha1"
 
 	"github.com/konstructio/colony/internal/constants"
@@ -22,6 +24,7 @@ import (
 
 type IPMIAuth struct {
 	HardwareID   string
+	BoardSerial  string
 	IP           string
 	Password     string
 	Username     string
@@ -50,6 +53,26 @@ func getAddIPMICommand() *cobra.Command {
 			ctx := cmd.Context()
 
 			log.Infof("adding ipmi information for host %q - auto discovery %t", ip, autoDiscover)
+
+			// validate login credentials
+			log.Infof("validating credentials")
+			bmcClient := bmclib.NewClient(ip, username, password)
+
+			err := bmcClient.Open(context.Background())
+			if err != nil {
+				// could also be a connection timeout
+				return fmt.Errorf("error connecting to remote server: %w", err)
+			}
+
+			defer bmcClient.Close(context.Background())
+			log.Infof("succesfully connected to remote server")
+
+			log.Infof("fetching remote server (%s) inventory", ip)
+
+			inventory, err := bmcClient.Inventory(context.Background())
+			if err != nil {
+				return fmt.Errorf("error getting machine inventory: %w", err)
+			}
 
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
@@ -85,6 +108,7 @@ func getAddIPMICommand() *cobra.Command {
 					Password:     password,
 					InsecureTLS:  insecureTLS,
 					AutoDiscover: autoDiscover,
+					BoardSerial:  inventory.Serial,
 				})
 				if err != nil {
 					return fmt.Errorf("error executing template: %w", err)
