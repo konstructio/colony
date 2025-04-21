@@ -190,7 +190,6 @@ func getAddIPMICommand() *cobra.Command {
 					WaitTimeout:  300,
 					RandomSuffix: randomSuffix,
 				})
-
 				if err != nil {
 					return fmt.Errorf("error get machine: %w", err)
 				}

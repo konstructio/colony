@@ -16,7 +16,6 @@ func getAssetsCommand() *cobra.Command {
 		Use:   "assets",
 		Short: "list the colony assets in the data center",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-
 			ctx := cmd.Context()
 			log := logger.New(logger.Debug)
 			homeDir, err := os.UserHomeDir()

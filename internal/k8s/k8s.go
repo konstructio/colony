@@ -170,7 +170,6 @@ func (c *Client) GetHardwareMachineRefFromSecretLabel(ctx context.Context, names
 
 // todo do better
 func (c *Client) SecretAddLabel(ctx context.Context, name, namespace, labelName, labelValue string) error {
-
 	s, err := c.clientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error getting secret: %w", err)
@@ -421,7 +420,6 @@ func (c *Client) WaitForKubernetesAPIHealthy(ctx context.Context, timeout time.D
 }
 
 func (c *Client) returnMachineObject(ctx context.Context, gvr schema.GroupVersionResource, matchLabel, matchLabelValue, namespace string, timeoutSeconds int) (*rufiov1alpha1.Machine, error) {
-
 	machine := &rufiov1alpha1.Machine{}
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {
@@ -684,7 +682,7 @@ func (c *Client) ListAssets(ctx context.Context) error {
 
 	// Convert hardware objects to rows
 	var rows []map[string]string
-	for i, _ := range hardwares.Items {
+	for i := range hardwares.Items {
 		h := &v1alpha1.Hardware{}
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(hardwares.Items[i].UnstructuredContent(), h)
 		if err != nil {
