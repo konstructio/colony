@@ -58,8 +58,7 @@ func getAddIPMICommand() *cobra.Command {
 			log.Infof("validating credentials")
 			bmcClient := bmclib.NewClient(ip, username, password)
 
-			err := bmcClient.Open(context.Background())
-			if err != nil {
+			if err := bmcClient.Open(context.Background()); err != nil {
 				// could also be a connection timeout
 				return fmt.Errorf("error connecting to remote server: %w", err)
 			}
