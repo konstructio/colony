@@ -15,7 +15,6 @@ import (
 )
 
 func (c *Client) returnRufioJobObject(ctx context.Context, gvr schema.GroupVersionResource, namespace string, timeoutSeconds int, opts metav1.ListOptions) (*rufiov1alpha1.Job, error) {
-
 	job := &rufiov1alpha1.Job{}
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {

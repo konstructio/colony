@@ -15,7 +15,6 @@ import (
 )
 
 func (c *Client) returnWorkflowObject(ctx context.Context, gvr schema.GroupVersionResource, namespace string, timeoutSeconds int, opts metav1.ListOptions) (*v1alpha1.Workflow, error) {
-
 	wf := &v1alpha1.Workflow{}
 
 	err := wait.PollUntilContextTimeout(ctx, 15*time.Second, time.Duration(timeoutSeconds)*time.Second, true, func(ctx context.Context) (bool, error) {

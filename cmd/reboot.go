@@ -24,7 +24,6 @@ func getRebootCommand() *cobra.Command {
 		Use:   "reboot",
 		Short: "reboots the server passed with hardware id",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-
 			ctx := cmd.Context()
 			log := logger.New(logger.Debug)
 
@@ -92,7 +91,6 @@ func getRebootCommand() *cobra.Command {
 				WaitTimeout:  300,
 				RandomSuffix: randomSuffix,
 			})
-
 			if err != nil {
 				return fmt.Errorf("error get rufio job: %w", err)
 			}
