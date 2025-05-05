@@ -12,7 +12,7 @@ spec:
   repo: https://charts.konstruct.io
   chart: colony
   targetNamespace: tink-system
-  version: 0.2.0
+  version: 0.2.1-rc13
   valuesContent: |-
     colony-agent:
       extraEnv:
@@ -60,3 +60,5 @@ spec:
         interface: {{ .LoadBalancerInterface }}
       relay:
         sourceInterface: {{ .LoadBalancerInterface }}
+    hookos:
+      downloadURL: https://github.com/konstructio/hook/releases/tag/v0.10.0-udev.2
