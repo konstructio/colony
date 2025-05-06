@@ -46,6 +46,19 @@ func getInitCommand() *cobra.Command {
 				apiKey = os.Getenv("COLONY_API_KEY")
 			}
 
+			dockerCLI, err := docker.New(log)
+			if err != nil {
+				return fmt.Errorf("error creating docker client: %w", err)
+			}
+			defer dockerCLI.Close()
+
+			containerExists, err := dockerCLI.CheckColonyK3sContainerExists(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to check for running container: %w", err)
+			} else if containerExists {
+				return fmt.Errorf("container already exists. please remove before continuing or run `colony destroy`")
+			}
+
 			colonyAPI := colony.New(apiURL, apiKey)
 			if agentID == "" {
 				agent, err := colonyAPI.RegisterAgent(ctx, dataCenterID)
@@ -103,12 +116,6 @@ func getInitCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error executing template: %w", err)
 			}
-
-			dockerCLI, err := docker.New(log)
-			if err != nil {
-				return fmt.Errorf("error creating docker client: %w", err)
-			}
-			defer dockerCLI.Close()
 
 			err = dockerCLI.CreateColonyK3sContainer(ctx, colonyK3sBootstrapPath, colonyKubeconfigPath, homeDir)
 			if err != nil {
