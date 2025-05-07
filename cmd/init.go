@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"os"
@@ -44,6 +45,21 @@ func getInitCommand() *cobra.Command {
 			// Check if an API key comes from the environment
 			if apiKey == "" {
 				apiKey = os.Getenv("COLONY_API_KEY")
+			}
+
+			dockerCLI, err := docker.New(log)
+			if err != nil {
+				return fmt.Errorf("error creating docker client: %w", err)
+			}
+			defer dockerCLI.Close()
+
+			containerExists, err := dockerCLI.CheckColonyK3sContainerExists(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to check for running container: %w", err)
+			}
+
+			if containerExists {
+				return errors.New("container already exists. please remove before continuing or run `colony destroy`")
 			}
 
 			colonyAPI := colony.New(apiURL, apiKey)
@@ -103,12 +119,6 @@ func getInitCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error executing template: %w", err)
 			}
-
-			dockerCLI, err := docker.New(log)
-			if err != nil {
-				return fmt.Errorf("error creating docker client: %w", err)
-			}
-			defer dockerCLI.Close()
 
 			err = dockerCLI.CreateColonyK3sContainer(ctx, colonyK3sBootstrapPath, colonyKubeconfigPath, homeDir)
 			if err != nil {

@@ -42,6 +42,16 @@ func (c *Client) Close() error {
 	return c.cli.Close() //nolint:wrapcheck // exposing the close to upstream callers
 }
 
+func (c *Client) CheckColonyK3sContainerExists(ctx context.Context) (bool, error) {
+	if _, err := c.getColonyK3sContainer(ctx); err != nil {
+		if errors.Is(err, ErrK3sContainerNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (c *Client) getColonyK3sContainer(ctx context.Context) (*types.Container, error) {
 	containers, err := c.cli.ContainerList(ctx, containerTypes.ListOptions{All: true})
 	if err != nil {
