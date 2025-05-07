@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"os"
@@ -56,7 +57,7 @@ func getInitCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to check for running container: %w", err)
 			} else if containerExists {
-				return fmt.Errorf("container already exists. please remove before continuing or run `colony destroy`")
+				return errors.New("container already exists. please remove before continuing or run `colony destroy`")
 			}
 
 			colonyAPI := colony.New(apiURL, apiKey)
