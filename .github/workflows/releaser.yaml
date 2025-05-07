@@ -1,7 +1,11 @@
 name: releaser
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
 
 jobs:
   goreleaser:
@@ -11,7 +15,28 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
+
+      - name: Export GoReleaser Argument
+        run: |
+          set -o xtrace
+
+          RC_PATTERN="^v([0-9]+)\.([0-9]+)\.([0-9]+)-rc([0-9]+)$"
+          SEMVER_PATTERN="^v([0-9]+)\.([0-9]+)\.([0-9]+)$"
           
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null)
+          
+          if [[ "$latest_tag" =~ $RC_PATTERN ]]; then 
+            GO_RELEASER_ARGS="--clean --draft --skip homebrew"
+          elif  [[ "$latest_tag" =~ $SEMVER_PATTERN ]]; then 
+            GO_RELEASER_ARGS="--clean"
+          else 
+              echo "$latest_tag doesn't match pattern vMAJOR.MINOR-PATCH-[rc(0-9+)]"
+              exit 1
+          fi
+
+          echo "GO_RELEASER_ARGS=$GO_RELEASER_ARGS" >> $GITHUB_ENV
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -22,9 +47,9 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean
+          args: release ${{ env.GO_RELEASER_ARGS }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # credentials for storing in S3          
           AWS_ACCESS_KEY_ID : ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY : ${{ secrets.AWS_SECRET_ACCESS_KEY }}
