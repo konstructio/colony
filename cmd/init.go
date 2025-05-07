@@ -56,7 +56,9 @@ func getInitCommand() *cobra.Command {
 			containerExists, err := dockerCLI.CheckColonyK3sContainerExists(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to check for running container: %w", err)
-			} else if containerExists {
+			}
+
+			if containerExists {
 				return errors.New("container already exists. please remove before continuing or run `colony destroy`")
 			}
 
