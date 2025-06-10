@@ -22,12 +22,17 @@ func (c *Client) HardwareInformer(ctx context.Context, ipmiIP string, hardwareCh
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			hw := &v1alpha1.Hardware{}
-			unst := obj.(*unstructured.Unstructured)
+			unst, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				// Optionally log or handle the unexpected type
+				c.logger.Errorf("expected *unstructured.Unstructured but got %T", obj)
+				return
+			}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unst.Object, hw); err != nil {
 				c.logger.Errorf("Error converting unstructured to hardware: %v\n", err)
 				return
 			}
-
+			//nolint:staticcheck // QF1008 we want to be explicit
 			c.logger.Infof("Hardware %q created by - id: %q \n", hw.Name, hw.ObjectMeta.UID)
 
 			err := c.SecretAddLabel(ctx, strings.ReplaceAll(ipmiIP, ".", "-"), constants.ColonyNamespace, "colony.konstruct.io/hardware-id", hw.Name)

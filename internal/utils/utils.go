@@ -8,6 +8,7 @@ import (
 
 func RandomString(n int) string {
 	letters := []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+	//nolint:gosec // GF115
 	rand.Seed(uint64(time.Now().UnixNano()))
 	s := make([]rune, n)
 	for i := range s {
