@@ -33,7 +33,7 @@ func (c *Client) HardwareInformer(ctx context.Context, ipmiIP string, hardwareCh
 				return
 			}
 
-			c.logger.Infof("Hardware %q created by - id: %q \n", hw.Name, hw.ObjectMeta.UID) //nolint:staticcheck // QF1008 we want to be explicit
+			c.logger.Infof("Hardware %q created by - id: %q \n", hw.Name, hw.ObjectMeta.UID)
 
 			err := c.SecretAddLabel(ctx, strings.ReplaceAll(ipmiIP, ".", "-"), constants.ColonyNamespace, "colony.konstruct.io/hardware-id", hw.Name)
 			if err != nil {
