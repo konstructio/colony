@@ -12,7 +12,7 @@ spec:
   repo: https://charts.konstruct.io
   chart: colony
   targetNamespace: tink-system
-  version: 0.2.1-rc16
+  version: 0.2.1-rc26
   valuesContent: |-
     colony-agent:
       extraEnv:
@@ -61,4 +61,4 @@ spec:
       relay:
         sourceInterface: {{ .LoadBalancerInterface }}
       hook:
-        downloadURL: "https://github.com/konstructio/hook/releases/download/v0.10.0-udev.2"
+        downloadURL: "https://github.com/konstructio/hook/releases/download/v0.10.0-udev.4"
