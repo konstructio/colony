@@ -14,6 +14,7 @@ type Column struct {
 	Align string // "left", "right", "center"
 }
 
+//nolint:revive
 type TablePrinter struct {
 	Columns []Column
 }

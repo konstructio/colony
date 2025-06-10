@@ -184,7 +184,7 @@ func (c *Client) SecretAddLabel(ctx context.Context, name, namespace, labelName,
 	// Update the secret
 	_, err = c.clientSet.CoreV1().Secrets(namespace).Update(ctx, s, metav1.UpdateOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update secret: %w", err)
 	}
 
 	return nil
@@ -548,6 +548,8 @@ type WorkflowWaitRequest struct {
 }
 
 // ! refactor... this is so dupe
+//
+//nolint:dupl
 func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job RufioJobWaitRequest) error {
 	c.logger.Infof("waiting for job %q in namespace %q", job.RandomSuffix, job.Namespace)
 
@@ -576,6 +578,7 @@ func (c *Client) FetchAndWaitForRufioJobs(ctx context.Context, job RufioJobWaitR
 	return nil
 }
 
+//nolint:dupl
 func (c *Client) FetchAndWaitForWorkflow(ctx context.Context, workflow WorkflowWaitRequest) error {
 	c.logger.Infof("waiting for workflow %q in namespace %q", workflow.RandomSuffix, workflow.Namespace)
 
@@ -607,7 +610,7 @@ func (c *Client) FetchAndWaitForWorkflow(ctx context.Context, workflow WorkflowW
 type UpdateHardwareRequest struct {
 	HardwareID string
 	Namespace  string
-	RemoveIpXE bool
+	RemoveIPXE bool
 }
 
 func (c *Client) HardwareRemoveIPXE(ctx context.Context, hardware UpdateHardwareRequest) (*v1alpha1.Hardware, error) {
@@ -677,11 +680,11 @@ func (c *Client) ListAssets(ctx context.Context) error {
 		return fmt.Errorf("error listing hardwares: %w", err)
 	}
 	if len(hardwares.Items) == 0 {
-		return fmt.Errorf("no hardware found")
+		return errors.New("no hardware found")
 	}
 
 	// Convert hardware objects to rows
-	var rows []map[string]string
+	rows := make([]map[string]string, 0, len(hardwares.Items))
 	for i := range hardwares.Items {
 		h := &v1alpha1.Hardware{}
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(hardwares.Items[i].UnstructuredContent(), h)

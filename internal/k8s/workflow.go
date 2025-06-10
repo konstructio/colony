@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+//nolint:dupl
 func (c *Client) returnWorkflowObject(ctx context.Context, gvr schema.GroupVersionResource, namespace string, timeoutSeconds int, opts metav1.ListOptions) (*v1alpha1.Workflow, error) {
 	wf := &v1alpha1.Workflow{}
 

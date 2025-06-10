@@ -64,7 +64,7 @@ func getAddIPMICommand() *cobra.Command {
 			}
 
 			defer bmcClient.Close(context.Background())
-			log.Infof("succesfully connected to remote server")
+			log.Infof("successfully connected to remote server")
 
 			log.Infof("fetching remote server (%s) inventory", ip)
 
@@ -152,7 +152,6 @@ func getAddIPMICommand() *cobra.Command {
 			log.Infof("machine is ready")
 
 			if autoDiscover {
-
 				file, err := manifests.IPMI.ReadFile("ipmi/ipmi-off-pxe-on.yaml.tmpl")
 				if err != nil {
 					return fmt.Errorf("error reading templates file: %w", err)
@@ -208,7 +207,6 @@ func getAddIPMICommand() *cobra.Command {
 				case <-time.After(5 * time.Minute):
 					log.Info("Timeout waiting for hardware creation")
 				}
-
 			}
 
 			return nil

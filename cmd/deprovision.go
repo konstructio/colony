@@ -59,7 +59,7 @@ func getDeprovisionCommand() *cobra.Command {
 			hw, err := k8sClient.HardwareRemoveIPXE(ctx, k8s.UpdateHardwareRequest{
 				HardwareID: hardwareID,
 				Namespace:  constants.ColonyNamespace,
-				RemoveIpXE: true,
+				RemoveIPXE: true,
 			})
 			if err != nil {
 				return fmt.Errorf("error getting hardware: %w", err)

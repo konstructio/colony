@@ -66,7 +66,7 @@ func getInitCommand() *cobra.Command {
 			if agentID == "" {
 				agent, err := colonyAPI.RegisterAgent(ctx, dataCenterID)
 				if err != nil {
-					if err == colony.ErrDataCenterAlreadyRegistered {
+					if errors.Is(err, colony.ErrDataCenterAlreadyRegistered) {
 						return fmt.Errorf("data center %s already has an agent registered", dataCenterID)
 					}
 					return fmt.Errorf("error registering agent: %w", err)

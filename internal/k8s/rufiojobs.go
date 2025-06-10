@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+//nolint:dupl
 func (c *Client) returnRufioJobObject(ctx context.Context, gvr schema.GroupVersionResource, namespace string, timeoutSeconds int, opts metav1.ListOptions) (*rufiov1alpha1.Job, error) {
 	job := &rufiov1alpha1.Job{}
 

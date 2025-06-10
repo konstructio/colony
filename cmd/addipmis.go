@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+//nolint:unused // ignore
 func getAddIPMIsCommand() *cobra.Command {
 	var ipmiAuthFile string
 	var templateFiles []string
@@ -113,20 +114,21 @@ func getAddIPMIsCommand() *cobra.Command {
 	return getAddIPMICmd
 }
 
+//nolint:unused
 func parseCSV(filename string) ([]IPMIAuth, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open file %q: %w", filename, err)
 	}
 	defer file.Close()
 
 	reader := csv.NewReader(file)
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read %q: %w", filename, err)
 	}
 
-	var ipmiEntries []IPMIAuth
+	ipmiEntries := make([]IPMIAuth, 0, len(records))
 	for _, record := range records {
 		enabled, _ := strconv.ParseBool(record[4])
 		entry := IPMIAuth{

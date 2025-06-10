@@ -22,7 +22,12 @@ func (c *Client) HardwareInformer(ctx context.Context, ipmiIP string, hardwareCh
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			hw := &v1alpha1.Hardware{}
-			unst := obj.(*unstructured.Unstructured)
+			unst, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				// Optionally log or handle the unexpected type
+				c.logger.Errorf("expected *unstructured.Unstructured but got %T", obj)
+				return
+			}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unst.Object, hw); err != nil {
 				c.logger.Errorf("Error converting unstructured to hardware: %v\n", err)
 				return
