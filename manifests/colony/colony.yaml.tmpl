@@ -22,6 +22,9 @@ spec:
         DATA_CENTER_ID: {{ .DataCenterID }}
         AGENT_ID: {{ .AgentID }}
         COLONY_API_URL: {{ .ColonyAPIURL }}
+        GITLAB_TOKEN: {{ .GitlabToken }}
+        API_TOKEN : {{ .APIToken }}
+        DOCKER_TOKEN: {{ .DockerToken }}
       extraEnvSecrets:
         API_TOKEN:
           key: api-key
