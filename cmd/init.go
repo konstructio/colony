@@ -29,10 +29,13 @@ type ColonyTokens struct {
 	DataCenterID          string
 	AgentID               string
 	ColonyAPIURL          string
+	GitlabToken           string
+	APIToken              string
+	DockerToken           string
 }
 
 func getInitCommand() *cobra.Command {
-	var dataCenterID, apiKey, agentID, apiURL, loadBalancerIP, loadBalancerInterface string
+	var dataCenterID, apiKey, agentID, apiURL, loadBalancerIP, loadBalancerInterface, gitlabToken, dockerToken, apiToken string
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -115,6 +118,9 @@ func getInitCommand() *cobra.Command {
 				DataCenterID:          dataCenterID,
 				AgentID:               agentID,
 				ColonyAPIURL:          apiURL,
+				GitlabToken:           gitlabToken,
+				APIToken:              apiToken,
+				DockerToken:           dockerToken,
 			})
 			if err != nil {
 				return fmt.Errorf("error executing template: %w", err)
@@ -300,10 +306,18 @@ func getInitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&apiURL, "api-url", "https://colony-api.konstruct.io", "api url for interacting with colony cloud")
 	cmd.Flags().StringVar(&loadBalancerInterface, "load-balancer-interface", "", "the local network interface for colony to use")
 	cmd.Flags().StringVar(&loadBalancerIP, "load-balancer-ip", "", "the local network interface for colony to use")
+	cmd.Flags().StringVar(&apiToken, "api-token", "", "API-go token")
+	cmd.Flags().StringVar(&gitlabToken, "gitlab-token", "", "Gitlab token")
+	cmd.Flags().StringVar(&dockerToken, "docker-token", "", "Docker token")
 
 	cmd.MarkFlagRequired("api-key")
 	cmd.MarkFlagRequired("data-center-id")
 	cmd.MarkFlagRequired("load-balancer-interface")
 	cmd.MarkFlagRequired("load-balancer-ip")
+	cmd.MarkFlagRequired("cse-config-path")
+	cmd.MarkFlagRequired("api-token")
+	cmd.MarkFlagRequired("gitlab-token")
+	cmd.MarkFlagRequired("docker-token")
+
 	return cmd
 }
