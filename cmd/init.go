@@ -32,10 +32,11 @@ type ColonyTokens struct {
 	GitlabToken           string
 	APIToken              string
 	DockerToken           string
+	CSEInstallerImage     string
 }
 
 func getInitCommand() *cobra.Command {
-	var dataCenterID, apiKey, agentID, apiURL, loadBalancerIP, loadBalancerInterface, gitlabToken, dockerToken, apiToken string
+	var dataCenterID, apiKey, agentID, apiURL, loadBalancerIP, loadBalancerInterface, gitlabToken, dockerToken, apiToken, cseInstallerImage string
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -121,6 +122,7 @@ func getInitCommand() *cobra.Command {
 				GitlabToken:           gitlabToken,
 				APIToken:              apiToken,
 				DockerToken:           dockerToken,
+				CSEInstallerImage:     cseInstallerImage,
 			})
 			if err != nil {
 				return fmt.Errorf("error executing template: %w", err)
@@ -309,6 +311,7 @@ func getInitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&apiToken, "api-token", "", "API-go token")
 	cmd.Flags().StringVar(&gitlabToken, "gitlab-token", "", "Gitlab token")
 	cmd.Flags().StringVar(&dockerToken, "docker-token", "", "Docker token")
+	cmd.Flags().StringVar(&cseInstallerImage, "cse-installer-image", "ghcr.io/konstructio/cse-installer:v0.0.9", "cse-installer image location")
 
 	cmd.MarkFlagRequired("api-key")
 	cmd.MarkFlagRequired("data-center-id")
