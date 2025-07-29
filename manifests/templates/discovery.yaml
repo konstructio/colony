@@ -13,9 +13,10 @@ spec:
         worker: "{{.device_1}}"
         volumes:
           - /lib/firmware:/lib/firmware:ro
+          - /host_root/run:/run:ro
         actions:
           - name: "execute-discovery-script"
-            image: ghcr.io/konstructio/colony-scout:v0.2.1
+            image: ghcr.io/konstructio/colony-scout:v0.2.2
             timeout: 180
             pid: host
             environment:

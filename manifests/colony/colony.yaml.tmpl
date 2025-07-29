@@ -12,7 +12,7 @@ spec:
   repo: https://charts.konstruct.io
   chart: colony
   targetNamespace: tink-system
-  version: 0.2.1
+  version: 0.2.2-rc47
   valuesContent: |-
     colony-agent:
       extraEnv:
@@ -22,6 +22,10 @@ spec:
         DATA_CENTER_ID: {{ .DataCenterID }}
         AGENT_ID: {{ .AgentID }}
         COLONY_API_URL: {{ .ColonyAPIURL }}
+        GITLAB_TOKEN: {{ .GitlabToken }}
+        APIGO_TOKEN : {{ .APIToken }}
+        DOCKER_TOKEN: {{ .DockerToken }}
+        CSE_INSTALLER_IMAGE: {{ .CSEInstallerImage }}
       extraEnvSecrets:
         API_TOKEN:
           key: api-key
