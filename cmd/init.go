@@ -311,7 +311,7 @@ func getInitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&apiToken, "api-token", "", "API-go token")
 	cmd.Flags().StringVar(&gitlabToken, "gitlab-token", "", "Gitlab token")
 	cmd.Flags().StringVar(&dockerToken, "docker-token", "", "Docker token")
-	cmd.Flags().StringVar(&cseInstallerImage, "cse-installer-image", "ghcr.io/konstructio/cse-installer:v0.0.9", "cse-installer image location")
+	cmd.Flags().StringVar(&cseInstallerImage, "cse-installer-image", "ghcr.io/konstructio/cse-installer:v0.0.10", "cse-installer image location")
 
 	cmd.MarkFlagRequired("api-key")
 	cmd.MarkFlagRequired("data-center-id")
