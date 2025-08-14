@@ -59,10 +59,13 @@ spec:
         - -dhcp-auto-discovery=true
         - -dhcp-mode=proxy
     stack:
+      image: mirror.gcr.io/nginx:1.25.1
       loadBalancerIP: {{ .LoadBalancerIP }}
       kubevip:
         interface: {{ .LoadBalancerInterface }}
       relay:
         sourceInterface: {{ .LoadBalancerInterface }}
       hook:
-        downloadURL: "https://github.com/konstructio/hook/releases/download/v0.10.0-udev.4"
+        downloadURL: "https://github.com/tinkerbell/hook/releases/download/v0.11.0" 
+        image: mirror.gcr.io/bash
+
