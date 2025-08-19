@@ -157,7 +157,9 @@ func getInitCommand() *cobra.Command {
 					Namespace: constants.ColonyNamespace,
 				},
 				Data: map[string][]byte{
-					"api-key": []byte(apiKey),
+					"api-key":  []byte(apiKey),
+					"api-url":  []byte(apiURL),
+					"agent-id": []byte(agentID),
 				},
 			}
 
