@@ -129,3 +129,26 @@ func (a *API) Heartbeat(ctx context.Context, agentID string) error {
 
 	return nil
 }
+
+func (a *API) CleanDatacenter(ctx context.Context, agentID string) error {
+	cleanDatacenterEndpoint := fmt.Sprintf("%s/api/v1/agents/%s/clean-datacenter", a.baseURL, agentID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, cleanDatacenterEndpoint, nil)
+	if err != nil {
+		return fmt.Errorf("error creating request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+a.token)
+
+	res, err := a.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error making request: %w", err)
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("unexpected status code: %d", res.StatusCode)
+	}
+
+	return nil
+}

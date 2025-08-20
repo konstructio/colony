@@ -136,6 +136,36 @@ func (c *Client) CreateSecret(ctx context.Context, secret *corev1.Secret) error 
 	return nil
 }
 
+type AgentConfig struct {
+	AgentID string
+	APIKey  string
+	APIURL  string
+}
+
+var requiredKeys = []string{"api-key", "api-url", "agent-id"}
+
+func (c *Client) GetAgentConfig(ctx context.Context) (*AgentConfig, error) {
+	secret, err := c.clientSet.CoreV1().Secrets(constants.ColonyNamespace).Get(ctx, constants.ColonyAPISecretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting colony-api secret: %w", err)
+	}
+
+	config := make(map[string]string, len(requiredKeys))
+	for _, key := range requiredKeys {
+		value := string(secret.Data[key])
+		if value == "" {
+			return nil, fmt.Errorf("required key %s not found in secret", key)
+		}
+		config[key] = value
+	}
+
+	return &AgentConfig{
+		AgentID: config["agent-id"],
+		APIKey:  config["api-key"],
+		APIURL:  config["api-url"],
+	}, nil
+}
+
 func (c *Client) WaitForSecretLabel(ctx context.Context, name, namespace string, opts metav1.ListOptions) error {
 	_, err := c.clientSet.CoreV1().Secrets(namespace).List(ctx, opts)
 	if err != nil {
