@@ -132,8 +132,7 @@ func (a *API) Heartbeat(ctx context.Context, agentID string) error {
 
 func (a *API) CleanDatacenter(ctx context.Context, agentID string) error {
 	cleanDatacenterEndpoint := fmt.Sprintf("%s/api/v1/agents/%s/clean-datacenter", a.baseURL, agentID)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cleanDatacenterEndpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, cleanDatacenterEndpoint, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
@@ -144,6 +143,7 @@ func (a *API) CleanDatacenter(ctx context.Context, agentID string) error {
 	if err != nil {
 		return fmt.Errorf("error making request: %w", err)
 	}
+
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusNoContent {
