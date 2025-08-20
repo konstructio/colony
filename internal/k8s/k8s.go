@@ -142,21 +142,21 @@ type AgentConfig struct {
 	APIURL  string
 }
 
+var requiredKeys = []string{"api-key", "api-url", "agent-id"}
+
 func (c *Client) GetAgentConfig(ctx context.Context) (*AgentConfig, error) {
 	secret, err := c.clientSet.CoreV1().Secrets(constants.ColonyNamespace).Get(ctx, constants.ColonyAPISecretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error getting colony-api secret: %w", err)
 	}
 
-	requiredKeys := []string{"api-key", "api-url", "agent-id"}
-	config := make(map[string]string)
-
+	config := make(map[string]string, len(requiredKeys))
 	for _, key := range requiredKeys {
-		if value := string(secret.Data[key]); value == "" {
+		value := string(secret.Data[key])
+		if value == "" {
 			return nil, fmt.Errorf("required key %s not found in secret", key)
-		} else {
-			config[key] = value
 		}
+		config[key] = value
 	}
 
 	return &AgentConfig{
