@@ -2,7 +2,7 @@ apiVersion: tinkerbell.org/v1alpha1
 kind: Workflow
 metadata:
   name: "{{ .Mac | replaceColonsWithHyphens }}-wipe-disks-{{ .RandomSuffix }}"
-  namespace: tink-system
+  namespace: tinkerbell
   labels:
     colony.konstruct.io/job-id: "{{ .RandomSuffix }}"
 spec:

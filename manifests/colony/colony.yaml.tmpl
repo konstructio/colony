@@ -1,19 +1,31 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: tink-system
+  name: tinkerbell
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
   name: colony
-  namespace: tink-system
+  namespace: tinkerbell
 spec:
   repo: https://charts.konstruct.io
   chart: colony
-  targetNamespace: tink-system
+  targetNamespace: tinkerbell
   version: 0.2.2-rc47
   valuesContent: |-
+    colony-api:
+      imagePullSecrets:
+        - name: docker-config
+      envFrom:
+        - secretRef:
+            name: colony-api-secrets
+    colony-ui:
+      imagePullSecrets:
+        - name: docker-config
+      apiURL : "something"
+      authURL : "something"
+      
     colony-agent:
       extraEnv:
         COLONY_API_URL: https://colony-api.konstruct.io
@@ -34,38 +46,28 @@ spec:
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: tink-stack
-  namespace: tink-system
+  name: tinkerbell
+  namespace: tinkerbell
 spec:
-  chart: oci://ghcr.io/tinkerbell/charts/stack
-  targetNamespace: tink-system
-  version: 0.4.4
+  chart: oci://ghcr.io/tinkerbell/charts/tinkerbell
+  targetNamespace: tinkerbell
+  version: v0.20.1
   valuesContent: |-
-    # 0.5.0 required for global.
-    # global:
-    #   # publicIP is used to set what both smee.publicIP and stack.loadBalancerIP do individually.
-    #   publicIP: {{ .LoadBalancerIP }}
-    hegel:
-      trustedProxies:
-      - 10.42.0.0/24
-    smee:
-      publicIP: {{ .LoadBalancerIP }}
-      image: public.ecr.aws/kubefirst/smee:9371956
-      trustedProxies:
-      - 10.42.0.0/24
-      tftp:
-        timeout: 120s
-      additionalArgs:
-        - -dhcp-auto-discovery=true
-        - -dhcp-mode=proxy
-    stack:
-      image: mirror.gcr.io/nginx:1.25.1
-      loadBalancerIP: {{ .LoadBalancerIP }}
+    trustedProxies:
+    - 10.42.0.0/24
+    publicIP: {{ .LoadBalancerIP }}
+    artifactsFileServer: {{ .LoadBalancerIP }}
+    deployment:
+      envs:
+        tinkServer:
+          autoDiscoveryEnabled: true
+          autoDiscoveryNamespace: tinkerbell
+        smee:
+          dhcpMode: auto-proxy
+    service:
       kubevip:
         interface: {{ .LoadBalancerInterface }}
-      relay:
-        sourceInterface: {{ .LoadBalancerInterface }}
+    optional:
       hook:
-        downloadURL: "https://github.com/tinkerbell/hook/releases/download/v0.11.0" 
-        image: mirror.gcr.io/bash
+        scriptImage: mirror.gcr.io/bash:5.2.37
 

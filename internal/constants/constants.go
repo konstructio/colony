@@ -7,6 +7,6 @@ const (
 	KubeconfigDockerPath   = "/output/kubeconfig"
 	ColonyYamlPath         = "colony.yaml"
 	ColonyDir              = ".colony"
-	ColonyNamespace        = "tink-system"
+	ColonyNamespace        = "tinkerbell"
 	ColonyAPISecretName    = "colony-api"
 )

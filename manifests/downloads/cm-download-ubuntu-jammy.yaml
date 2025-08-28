@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: download-ubuntu-jammy
-  namespace: tink-system
+  namespace: tinkerbell
 data:
   entrypoint.sh: |-
     #!/usr/bin/env bash

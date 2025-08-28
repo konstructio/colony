@@ -705,7 +705,7 @@ func (c *Client) ListAssets(ctx context.Context) error {
 		Resource: "hardware",
 	}
 
-	hardwares, err := c.dynamic.Resource(gvr).Namespace("tink-system").List(ctx, metav1.ListOptions{})
+	hardwares, err := c.dynamic.Resource(gvr).Namespace("tinkerbell").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("error listing hardwares: %w", err)
 	}

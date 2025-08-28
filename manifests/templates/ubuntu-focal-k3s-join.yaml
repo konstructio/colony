@@ -2,7 +2,7 @@ apiVersion: "tinkerbell.org/v1alpha1"
 kind: Template
 metadata:
   name: ubuntu-focal-k3s-join
-  namespace: tink-system
+  namespace: tinkerbell
 spec:
   data: |
     version: "0.1"

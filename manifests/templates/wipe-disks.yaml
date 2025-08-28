@@ -2,7 +2,7 @@ apiVersion: "tinkerbell.org/v1alpha1"
 kind: Template
 metadata:
   name: wipe-disks
-  namespace: tink-system
+  namespace: tinkerbell
 spec:
   data: |
     version: "0.1"
